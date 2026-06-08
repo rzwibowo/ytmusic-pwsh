@@ -71,6 +71,15 @@ $script:ProfilePlaylistResults = @()
 
 $script:PlaylistLibrary = @()
 
+$script:CurrentPlaylistSource = $null
+
+$script:CacheIndex =
+    [System.Collections.Generic.Dictionary[string, System.IO.FileInfo]]::new(
+        [System.StringComparer]::OrdinalIgnoreCase
+    )
+
+$script:CacheIndexInitialized = $false
+
 # ============================================================
 # HTTP AUTH
 # ============================================================
@@ -308,6 +317,11 @@ function Stop-VLC {
 
 function Get-TuiStatusData {
 
+    param(
+        [AllowNull()]
+        [object]$VLCStatus
+    )
+
     $title =
         if ($script:CurrentSong) {
             [string]$script:CurrentSong.Title
@@ -325,18 +339,15 @@ function Get-TuiStatusData {
     $elapsedSeconds = 0
     $totalSeconds = 0
 
-    try {
-        $status = Get-VLCStatus
-        $state = ([string]$status.state).ToUpperInvariant()
+    if ($VLCStatus) {
+        $state = ([string]$VLCStatus.state).ToUpperInvariant()
         $position = [math]::Clamp(
-            [math]::Round(([double]$status.position * 100)),
+            [math]::Round(([double]$VLCStatus.position * 100)),
             0,
             100
         )
-        $elapsedSeconds = [math]::Max(0, [int]$status.time)
-        $totalSeconds = [math]::Max(0, [int]$status.length)
-    }
-    catch {
+        $elapsedSeconds = [math]::Max(0, [int]$VLCStatus.time)
+        $totalSeconds = [math]::Max(0, [int]$VLCStatus.length)
     }
 
     $barWidth = 20
@@ -382,14 +393,17 @@ function Format-PlaybackTime {
 function Write-TuiStatus {
 
     param(
-        [int]$Row
+        [int]$Row,
+
+        [AllowNull()]
+        [object]$VLCStatus
     )
 
     try {
         $cursorLeft = [Console]::CursorLeft
         $cursorTop = [Console]::CursorTop
         $width = [math]::Max(20, [Console]::WindowWidth - 1)
-        $status = Get-TuiStatusData
+        $status = Get-TuiStatusData $VLCStatus
         $originalColor = [Console]::ForegroundColor
 
         $stateColor =
@@ -450,6 +464,34 @@ function Write-TuiStatus {
 # CACHE
 # ============================================================
 
+function Initialize-CacheIndex {
+
+    $script:CacheIndex.Clear()
+
+    foreach (
+        $file in
+            Get-ChildItem `
+                $Config.CacheDir `
+                -File `
+                -ErrorAction SilentlyContinue
+    ) {
+        if ($file.BaseName -eq $file.Name) {
+            continue
+        }
+
+        if (
+            $file.Name.EndsWith(".thumbnail.jpg") -or
+            $file.Extension -in @(".part", ".ytdl")
+        ) {
+            continue
+        }
+
+        $script:CacheIndex[$file.BaseName] = $file
+    }
+
+    $script:CacheIndexInitialized = $true
+}
+
 function Get-CacheSize {
 
     $files =
@@ -492,6 +534,13 @@ function Clean-Cache {
         Write-Host "Removing cache $($oldest.Name)"
 
         Remove-Item $oldest.FullName -Force
+
+        if (
+            $script:CacheIndex.ContainsKey($oldest.BaseName) -and
+            $script:CacheIndex[$oldest.BaseName].FullName -eq $oldest.FullName
+        ) {
+            [void]$script:CacheIndex.Remove($oldest.BaseName)
+        }
     }
 }
 
@@ -501,14 +550,37 @@ function Get-CacheFile {
         [string]$VideoId
     )
 
-    Get-ChildItem `
-        $Config.CacheDir `
-        -File `
-        -ErrorAction SilentlyContinue |
-    Where-Object {
-        $_.BaseName -eq $VideoId
-    } |
-    Select-Object -First 1
+    if (!$script:CacheIndexInitialized) {
+        Initialize-CacheIndex
+    }
+
+    if ($script:CacheIndex.ContainsKey($VideoId)) {
+        $cached = $script:CacheIndex[$VideoId]
+
+        if ($cached.Exists) {
+            return $cached
+        }
+
+        [void]$script:CacheIndex.Remove($VideoId)
+    }
+
+    $cached =
+        Get-ChildItem `
+            $Config.CacheDir `
+            -File `
+            -Filter "$VideoId.*" `
+            -ErrorAction SilentlyContinue |
+        Where-Object {
+            $_.BaseName -eq $VideoId -and
+            $_.Extension -notin @(".part", ".ytdl")
+        } |
+        Select-Object -First 1
+
+    if ($cached) {
+        $script:CacheIndex[$VideoId] = $cached
+    }
+
+    return $cached
 }
 
 # ============================================================
@@ -549,20 +621,20 @@ function Search-Youtube {
         return @()
     }
 
-    $list = @()
+    $list = [System.Collections.Generic.List[object]]::new()
 
     foreach ($entry in $json.entries) {
 
-        $list += [PSCustomObject]@{
+        $list.Add([PSCustomObject]@{
             Id    = $entry.id
             Title = $entry.title
-        }
+        })
     }
 
-    return $list
+    return $list.ToArray()
 }
 
-function Get-YoutubePlaylistSongs {
+function Get-YoutubePlaylistData {
 
     param(
         [string]$Url
@@ -590,23 +662,48 @@ function Get-YoutubePlaylistSongs {
 
     if (!$json.entries) {
         Write-Host "No playlist entries found"
-        return @()
+        return $null
     }
 
-    $songs = @()
+    $songs = [System.Collections.Generic.List[object]]::new()
 
     foreach ($entry in $json.entries) {
         if (!$entry.id -or !$entry.title) {
             continue
         }
 
-        $songs += [PSCustomObject]@{
+        $songs.Add([PSCustomObject]@{
             Id = [string]$entry.id
             Title = [string]$entry.title
-        }
+        })
     }
 
-    return $songs
+    if ($songs.Count -eq 0) {
+        Write-Host "No valid playlist entries found"
+        return $null
+    }
+
+    return [PSCustomObject]@{
+        Id = [string]$json.id
+        Title = [string]$json.title
+        Url = $Url
+        Songs = $songs.ToArray()
+    }
+}
+
+function Get-YoutubePlaylistSongs {
+
+    param(
+        [string]$Url
+    )
+
+    $playlistData = Get-YoutubePlaylistData $Url
+
+    if (!$playlistData) {
+        return @()
+    }
+
+    return @($playlistData.Songs)
 }
 
 function Save-CurrentPlaylist {
@@ -642,13 +739,14 @@ function Load-YoutubePlaylist {
     Write-Host ""
     Write-Host "Loading playlist..."
 
-    $songs = @(Get-YoutubePlaylistSongs $Url)
+    $playlistData = Get-YoutubePlaylistData $Url
 
-    if ($songs.Count -eq 0) {
+    if (!$playlistData) {
         return
     }
 
-    $script:CurrentPlaylist = $songs
+    $script:CurrentPlaylist = @($playlistData.Songs)
+    $script:CurrentPlaylistSource = $playlistData
 
     $script:CurrentIndex = -1
     $script:CurrentSong = $null
@@ -730,7 +828,7 @@ function Find-ProfilePlaylists {
         return @()
     }
 
-    $playlists = @()
+    $playlists = [System.Collections.Generic.List[object]]::new()
 
     foreach ($entry in @($json.entries)) {
         if (!$entry.id -or !$entry.title) {
@@ -753,14 +851,14 @@ function Find-ProfilePlaylists {
             $url = "https://www.youtube.com/playlist?list=$($entry.id)"
         }
 
-        $playlists += [PSCustomObject]@{
+        $playlists.Add([PSCustomObject]@{
             Id = [string]$entry.id
             Title = [string]$entry.title
             Url = $url
-        }
+        })
     }
 
-    return $playlists
+    return $playlists.ToArray()
 }
 
 function Get-YoutubeRecommendation {
@@ -936,6 +1034,7 @@ function Play-SingleUrl {
     }
 
     $script:CurrentPlaylist = @($song)
+    $script:CurrentPlaylistSource = $null
     $script:CurrentIndex = -1
     $script:CurrentSong = $null
 
@@ -1036,6 +1135,10 @@ function Get-ThumbnailFile {
 
 function Show-Thumbnail {
 
+    $source = $null
+    $bitmap = $null
+    $graphics = $null
+
     $song = Get-CurrentSongOrWarn
 
     if (!$song) {
@@ -1052,8 +1155,7 @@ function Show-Thumbnail {
     try {
         Add-Type -AssemblyName System.Drawing
 
-        $source =
-            [System.Drawing.Image]::FromFile($thumbnailFile)
+        $source = [System.Drawing.Image]::FromFile($thumbnailFile)
 
         try {
             $width = [math]::Max(
@@ -1076,7 +1178,6 @@ function Show-Thumbnail {
                 $pixelHeight++
             }
 
-            $bitmap = $null
             $bitmap =
                 [System.Drawing.Bitmap]::new(
                     $width,
@@ -1084,8 +1185,7 @@ function Show-Thumbnail {
                 )
 
             try {
-                $graphics =
-                    [System.Drawing.Graphics]::FromImage($bitmap)
+                $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
 
                 try {
                     $graphics.InterpolationMode =
@@ -1101,6 +1201,7 @@ function Show-Thumbnail {
                 }
                 finally {
                     $graphics.Dispose()
+                    $graphics = $null
                 }
 
                 $escape = [char]27
@@ -1130,11 +1231,15 @@ function Show-Thumbnail {
             finally {
                 if ($bitmap) {
                     $bitmap.Dispose()
+                    $bitmap = $null
                 }
             }
         }
         finally {
-            $source.Dispose()
+            if ($source) {
+                $source.Dispose()
+                $source = $null
+            }
         }
     }
     catch {
@@ -1145,6 +1250,20 @@ function Show-Thumbnail {
         }
 
         Write-Host "Could not render color thumbnail: $($_.Exception.Message)"
+    }
+    finally {
+        if ($graphics) {
+            $graphics.Dispose()
+        }
+
+        if ($bitmap) {
+            $bitmap.Dispose()
+        }
+
+        if ($source) {
+            $source.Dispose()
+        }
+
     }
 }
 
@@ -1292,6 +1411,85 @@ function Save-PlaylistLibrary {
         Set-Content (Get-PlaylistLibraryFile)
 }
 
+function Save-LoadedUrlPlaylist {
+
+    if (!$script:CurrentPlaylistSource) {
+        Write-Host "No URL playlist to save. Use playlist load <url> first."
+        return
+    }
+
+    if ($script:CurrentPlaylist.Count -eq 0) {
+        Write-Host "Current playlist is empty"
+        return
+    }
+
+    $playlist = $script:CurrentPlaylistSource
+    $playlistId = [string]$playlist.Id
+
+    if (!$playlistId) {
+        $playlistId = [guid]::NewGuid().ToString("N")
+    }
+
+    $safeId = $playlistId -replace '[^A-Za-z0-9_-]', '_'
+    $fileName = "$safeId.json"
+    $playlistFile = Join-Path $Config.PlaylistLibraryDir $fileName
+
+    $script:CurrentPlaylist |
+        ConvertTo-Json -Depth 5 |
+        Set-Content $playlistFile
+
+    Restore-PlaylistLibrary
+
+    $existingIndex = -1
+
+    for ($i = 0; $i -lt $script:PlaylistLibrary.Count; $i++) {
+        if ($script:PlaylistLibrary[$i].Id -eq $playlistId) {
+            $existingIndex = $i
+            break
+        }
+    }
+
+    $title = [string]$playlist.Title
+
+    if (!$title) {
+        $title = "YouTube Playlist"
+    }
+
+    $libraryEntry = [PSCustomObject]@{
+        Id = $playlistId
+        Title = $title
+        Url = [string]$playlist.Url
+        File = $fileName
+        SongCount = $script:CurrentPlaylist.Count
+        ImportedAt = (Get-Date).ToString("o")
+    }
+
+    if ($existingIndex -ge 0) {
+        $updatedLibrary =
+            [System.Collections.Generic.List[object]]::new(
+                $script:PlaylistLibrary.Count
+            )
+
+        for ($i = 0; $i -lt $script:PlaylistLibrary.Count; $i++) {
+            if ($i -eq $existingIndex) {
+                $updatedLibrary.Add($libraryEntry)
+            }
+            else {
+                $updatedLibrary.Add($script:PlaylistLibrary[$i])
+            }
+        }
+
+        $script:PlaylistLibrary = $updatedLibrary.ToArray()
+        Write-Host "Updated local playlist: $title"
+    }
+    else {
+        $script:PlaylistLibrary += $libraryEntry
+        Write-Host "Saved local playlist: $title"
+    }
+
+    Save-PlaylistLibrary
+}
+
 function Restore-PlaylistLibrary {
 
     $libraryFile = Get-PlaylistLibraryFile
@@ -1319,7 +1517,7 @@ function Show-PlaylistManager {
     Write-Host "Local Playlist Manager:" -ForegroundColor Yellow
 
     if ($script:PlaylistLibrary.Count -eq 0) {
-        Write-Host "No local playlists. Use profile add <number|all> first."
+        Write-Host "No local playlists. Use playlist save or profile add <number|all> first."
         return
     }
 
@@ -1398,18 +1596,21 @@ function Import-ProfilePlaylist {
     }
 
     if ($existingIndex -ge 0) {
-        $updatedLibrary = @()
+        $updatedLibrary =
+            [System.Collections.Generic.List[object]]::new(
+                $script:PlaylistLibrary.Count
+            )
 
         for ($i = 0; $i -lt $script:PlaylistLibrary.Count; $i++) {
             if ($i -eq $existingIndex) {
-                $updatedLibrary += $libraryEntry
+                $updatedLibrary.Add($libraryEntry)
             }
             else {
-                $updatedLibrary += $script:PlaylistLibrary[$i]
+                $updatedLibrary.Add($script:PlaylistLibrary[$i])
             }
         }
 
-        $script:PlaylistLibrary = $updatedLibrary
+        $script:PlaylistLibrary = $updatedLibrary.ToArray()
         Write-Host "Updated local playlist: $($songs.Count) songs"
     }
     else {
@@ -1486,6 +1687,7 @@ function Use-LocalPlaylist {
     }
 
     $script:CurrentPlaylist = $songs
+    $script:CurrentPlaylistSource = $null
     $script:CurrentIndex = -1
     $script:CurrentSong = $null
     $script:Queue.Clear()
@@ -1534,15 +1736,18 @@ function Remove-LocalPlaylist {
         Remove-Item -LiteralPath $playlistFile -Force
     }
 
-    $updatedLibrary = @()
+    $updatedLibrary =
+        [System.Collections.Generic.List[object]]::new(
+            [math]::Max(0, $script:PlaylistLibrary.Count - 1)
+        )
 
     for ($i = 0; $i -lt $script:PlaylistLibrary.Count; $i++) {
         if ($i -ne $Index) {
-            $updatedLibrary += $script:PlaylistLibrary[$i]
+            $updatedLibrary.Add($script:PlaylistLibrary[$i])
         }
     }
 
-    $script:PlaylistLibrary = $updatedLibrary
+    $script:PlaylistLibrary = $updatedLibrary.ToArray()
     Save-PlaylistLibrary
 
     Write-Host "Deleted local playlist: $($playlist.Title)"
@@ -1613,6 +1818,7 @@ function Show-Help {
     Write-Host ""
     Write-Host "Commands:" -ForegroundColor Yellow
     Write-Host "  playlist load <url>  Load YouTube playlist"
+    Write-Host "  playlist save        Save loaded URL playlist to local library"
     Write-Host "  playlist show        Show loaded playlist"
     Write-Host "  profile load <url>   Find all public playlists from a profile"
     Write-Host "  profile show         Show the last profile playlist results"
@@ -1658,6 +1864,8 @@ function Show-Help {
 # ============================================================
 
 Start-VLC
+
+Initialize-CacheIndex
 
 Clean-Cache
 
@@ -2018,27 +2226,30 @@ function Show-Status {
 
 function Test-AutoNext {
 
+    param(
+        [AllowNull()]
+        [object]$VLCStatus
+    )
+
     if (!$script:CurrentSong -or $script:CurrentPlaylist.Count -eq 0) {
         return $false
     }
 
-    try {
-        $status = Get-VLCStatus
-
-        if ($status.state -eq "playing") {
-            $script:AutoAdvanceArmed = $true
-            return $false
-        }
-
-        if ($status.state -eq "stopped" -and $script:AutoAdvanceArmed) {
-            $script:AutoAdvanceArmed = $false
-            Write-Host ""
-            Write-Host "Song finished. Playing next..."
-            Next-Song
-            return $true
-        }
+    if (!$VLCStatus) {
+        return $false
     }
-    catch {
+
+    if ($VLCStatus.state -eq "playing") {
+        $script:AutoAdvanceArmed = $true
+        return $false
+    }
+
+    if ($VLCStatus.state -eq "stopped" -and $script:AutoAdvanceArmed) {
+        $script:AutoAdvanceArmed = $false
+        Write-Host ""
+        Write-Host "Song finished. Playing next..."
+        Next-Song
+        return $true
     }
 
     return $false
@@ -2051,6 +2262,7 @@ function Read-PlayerCommand {
     Write-Host -NoNewline "ytmusic: "
     $inputBuffer = ""
     $lastStatusCheck = [datetime]::MinValue
+    $statusRefreshMilliseconds = 750
 
     while ($true) {
         if ([Console]::KeyAvailable) {
@@ -2118,14 +2330,32 @@ function Read-PlayerCommand {
             Start-Sleep -Milliseconds 100
         }
 
-        if (((Get-Date) - $lastStatusCheck).TotalMilliseconds -ge 750) {
+        if (
+            ((Get-Date) - $lastStatusCheck).TotalMilliseconds -ge
+                $statusRefreshMilliseconds
+        ) {
             $lastStatusCheck = Get-Date
+            $vlcStatus = $null
 
-            if ($inputBuffer.Length -eq 0) {
-                Write-TuiStatus $statusRow
+            try {
+                $vlcStatus = Get-VLCStatus
+            }
+            catch {
             }
 
-            if (Test-AutoNext) {
+            $statusRefreshMilliseconds =
+                if ($vlcStatus -and $vlcStatus.state -eq "playing") {
+                    750
+                }
+                else {
+                    2500
+                }
+
+            if ($inputBuffer.Length -eq 0) {
+                Write-TuiStatus $statusRow $vlcStatus
+            }
+
+            if (Test-AutoNext $vlcStatus) {
                 Write-Host -NoNewline "ytmusic: $inputBuffer"
             }
         }
@@ -2369,6 +2599,11 @@ try {
         '^playlist load (.+)$' {
 
             Load-YoutubePlaylist $Matches[1]
+        }
+
+        '^playlist save$' {
+
+            Save-LoadedUrlPlaylist
         }
 
         '^profile load (.+)$' {
