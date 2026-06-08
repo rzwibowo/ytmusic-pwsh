@@ -1522,6 +1522,7 @@ function Show-Help {
     Write-Host "  playlist delete <n>  Delete a local playlist"
     Write-Host "  search <keyword>     Search YouTube"
     Write-Host "  plays <n>            Play a search result"
+    Write-Host "  queues <n>           Add a search result to queue"
     Write-Host "  play <n>             Play a playlist song"
     Write-Host "  queue <n>            Add song to queue"
     Write-Host "  queue                Show queue"
@@ -2069,6 +2070,7 @@ function Search-Command {
     if ($script:SearchResult.Count -gt 0) {
         Write-Host ""
         Write-Host "Use: plays <number>" -ForegroundColor Yellow
+        Write-Host "Or : queues <number>" -ForegroundColor Yellow
     }
 }
 
@@ -2138,6 +2140,39 @@ function Play-SearchResult {
         $script:CurrentPlaylist += $song
         Play-Song ($script:CurrentPlaylist.Count - 1)
     }
+}
+
+function Add-SearchResultToQueue {
+
+    param(
+        [int]$Index
+    )
+
+    if (
+        $Index -lt 0 -or
+        $Index -ge $script:SearchResult.Count
+    ) {
+        Write-Host "Invalid search result number"
+        return
+    }
+
+    $song = $script:SearchResult[$Index]
+    $playlistIndex = -1
+
+    for ($i = 0; $i -lt $script:CurrentPlaylist.Count; $i++) {
+        if ($script:CurrentPlaylist[$i].Id -eq $song.Id) {
+            $playlistIndex = $i
+            break
+        }
+    }
+
+    if ($playlistIndex -lt 0) {
+        $script:CurrentPlaylist += $song
+        $playlistIndex = $script:CurrentPlaylist.Count - 1
+        Save-CurrentPlaylist
+    }
+
+    Add-ToQueue $playlistIndex
 }
 
 # ============================================================
@@ -2282,6 +2317,13 @@ try {
         '^plays (\d+)$' {
 
             Play-SearchResult (
+                [int]$Matches[1] - 1
+            )
+        }
+
+        '^queues (\d+)$' {
+
+            Add-SearchResultToQueue (
                 [int]$Matches[1] - 1
             )
         }
