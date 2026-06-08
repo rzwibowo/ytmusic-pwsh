@@ -2,6 +2,9 @@
 
 Aplikasi ini membutuhkan beberapa dependensi sebelum dapat dijalankan.
 
+<img width="995" height="538" alt="image" src="https://github.com/user-attachments/assets/df460263-3280-4c08-93e6-458c4251ba13" />
+
+
 ## Persyaratan
 
 - `PowerShell 7+` (disarankan `pwsh`)
