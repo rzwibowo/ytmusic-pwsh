@@ -826,18 +826,120 @@ function Get-YoutubeRecommendation {
 function Get-StreamUrl {
 
     param(
-        [string]$VideoId
+        [string]$VideoId,
+        [string]$SourceUrl
     )
 
-    $url =
+    $url = if ($SourceUrl) {
+        $SourceUrl
+    }
+    else {
         "https://www.youtube.com/watch?v=$VideoId"
+    }
 
-    & $Config.YtDlp `
-        --js-runtimes $Config.JsRuntime `
-        -f ba `
-        -g `
-        $url |
-    Select-Object -First 1
+    $arguments = @(
+        "--js-runtimes", $Config.JsRuntime,
+        "--no-playlist",
+        "-f", "ba",
+        "-g",
+        $url
+    )
+
+    $startInfo = [System.Diagnostics.ProcessStartInfo]::new()
+    $startInfo.FileName = $Config.YtDlp
+    $startInfo.UseShellExecute = $false
+    $startInfo.CreateNoWindow = $true
+    $startInfo.RedirectStandardOutput = $true
+    $startInfo.RedirectStandardError = $true
+
+    foreach ($argument in $arguments) {
+        [void]$startInfo.ArgumentList.Add([string]$argument)
+    }
+
+    $process = [System.Diagnostics.Process]::new()
+    $process.StartInfo = $startInfo
+
+    try {
+        if (!$process.Start()) {
+            return $null
+        }
+
+        $outputTask = $process.StandardOutput.ReadToEndAsync()
+        $errorTask = $process.StandardError.ReadToEndAsync()
+        $spinner = @("|", "/", "-", "\")
+        $frame = 0
+
+        Write-Host -NoNewline "[STREAM] $($spinner[0])"
+
+        while (!$process.WaitForExit(100)) {
+            try {
+                [Console]::Write(
+                    "`r[STREAM] $($spinner[$frame % $spinner.Count])"
+                )
+            }
+            catch {
+            }
+
+            $frame++
+        }
+
+        try {
+            [Console]::WriteLine("`r[STREAM]   ")
+        }
+        catch {
+            Write-Host ""
+        }
+
+        $output = $outputTask.GetAwaiter().GetResult()
+        $errorOutput = $errorTask.GetAwaiter().GetResult()
+
+        if ($process.ExitCode -ne 0) {
+            if ($errorOutput) {
+                Write-Host ($errorOutput.Trim())
+            }
+
+            return $null
+        }
+
+        return (
+            @($output -split "\r?\n") |
+            Where-Object { $_ } |
+            Select-Object -First 1
+        )
+    }
+    finally {
+        $process.Dispose()
+    }
+}
+
+function Play-SingleUrl {
+
+    param(
+        [string]$Url
+    )
+
+    $Url = ($Url -replace '[\x00-\x1F\x7F]', '').Trim()
+    $parsedUrl = $null
+
+    if (
+        ![uri]::TryCreate($Url, [System.UriKind]::Absolute, [ref]$parsedUrl) -or
+        $parsedUrl.Scheme -notin @("http", "https")
+    ) {
+        Write-Host "Invalid media URL"
+        return
+    }
+
+    $song = [PSCustomObject]@{
+        Id = $parsedUrl.AbsoluteUri
+        Title = $parsedUrl.AbsoluteUri
+        SourceUrl = $parsedUrl.AbsoluteUri
+    }
+
+    $script:CurrentPlaylist = @($song)
+    $script:CurrentIndex = -1
+    $script:CurrentSong = $null
+
+    Play-Song 0
 }
 
 function Start-BackgroundCache {
@@ -1524,6 +1626,7 @@ function Show-Help {
     Write-Host "  plays <n>            Play a search result"
     Write-Host "  queues <n>           Add a search result to queue"
     Write-Host "  play <n>             Play a playlist song"
+    Write-Host "  playurl <url>        Play one URL (not a playlist)"
     Write-Host "  queue <n>            Add song to queue"
     Write-Host "  queue                Show queue"
     Write-Host "  pause / resume       Pause or resume playback"
@@ -1628,10 +1731,16 @@ function Play-Song {
     }
     else {
 
-        Write-Host "[STREAM]"
+        $sourceUrl = $null
+
+        if ($song.PSObject.Properties.Name -contains "SourceUrl") {
+            $sourceUrl = [string]$song.SourceUrl
+        }
 
         $stream =
-            Get-StreamUrl $song.Id
+            Get-StreamUrl `
+                -VideoId $song.Id `
+                -SourceUrl $sourceUrl
 
         if (!$stream) {
 
@@ -1641,7 +1750,9 @@ function Play-Song {
 
         Play-Stream $stream
 
-        Start-BackgroundCache $song.Id
+        if (!$sourceUrl) {
+            Start-BackgroundCache $song.Id
+        }
     }
 
     Start-PreloadNext
@@ -1766,7 +1877,11 @@ function Get-NextIndex {
 
     if (
         $script:AutoRecommend -and
-        $script:CurrentIndex -ge ($script:CurrentPlaylist.Count - 1)
+        $script:CurrentIndex -ge ($script:CurrentPlaylist.Count - 1) -and
+        !(
+            $script:CurrentSong.PSObject.Properties.Name -contains
+            "SourceUrl"
+        )
     ) {
         $recommendation =
             Get-YoutubeRecommendation $script:CurrentSong.Id
@@ -2326,6 +2441,11 @@ try {
             Add-SearchResultToQueue (
                 [int]$Matches[1] - 1
             )
+        }
+
+        '^playurl (.+)$' {
+
+            Play-SingleUrl $Matches[1]
         }
 
         '^play (\d+)$' {
