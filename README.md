@@ -3,6 +3,7 @@
 Aplikasi ini membutuhkan beberapa dependensi sebelum dapat dijalankan.
 
 <img width="995" height="538" alt="image" src="https://github.com/user-attachments/assets/df460263-3280-4c08-93e6-458c4251ba13" />
+<img width="995" height="538" alt="image" src="https://github.com/user-attachments/assets/b9a9a0a8-d2c7-4d26-8fe5-5733a1f9320f" />
 
 
 ## Persyaratan
