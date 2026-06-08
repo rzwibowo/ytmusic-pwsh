@@ -31,6 +31,10 @@ $Config = @{
     CacheDir = ".\cache"
 
     PlaylistLibraryDir = ".\data\playlists"
+
+    ThumbnailWidth = 32
+
+    LyricsApi = "https://lrclib.net/api/search"
 }
 
 # ============================================================
@@ -884,6 +888,249 @@ function Show-Songs {
     }
 }
 
+function Get-CurrentSongOrWarn {
+
+    if (!$script:CurrentSong) {
+        Write-Host "Nothing is playing"
+        return $null
+    }
+
+    return $script:CurrentSong
+}
+
+function Get-ThumbnailFile {
+
+    param(
+        [string]$VideoId
+    )
+
+    $thumbnailFile =
+        Join-Path $Config.CacheDir "$VideoId.thumbnail.jpg"
+
+    if (Test-Path -LiteralPath $thumbnailFile) {
+        return $thumbnailFile
+    }
+
+    $thumbnailUrl =
+        "https://i.ytimg.com/vi/$VideoId/hqdefault.jpg"
+
+    try {
+        Invoke-WebRequest `
+            -Uri $thumbnailUrl `
+            -OutFile $thumbnailFile `
+            -TimeoutSec 10
+
+        return $thumbnailFile
+    }
+    catch {
+        Remove-Item `
+            -LiteralPath $thumbnailFile `
+            -Force `
+            -ErrorAction SilentlyContinue
+
+        return $null
+    }
+}
+
+function Show-Thumbnail {
+
+    $song = Get-CurrentSongOrWarn
+
+    if (!$song) {
+        return
+    }
+
+    $thumbnailFile = Get-ThumbnailFile $song.Id
+
+    if (!$thumbnailFile) {
+        Write-Host "Could not load thumbnail"
+        return
+    }
+
+    try {
+        Add-Type -AssemblyName System.Drawing
+
+        $source =
+            [System.Drawing.Image]::FromFile($thumbnailFile)
+
+        try {
+            $width = [math]::Max(
+                8,
+                [math]::Min(
+                    [int]$Config.ThumbnailWidth,
+                    [math]::Max(8, [Console]::WindowWidth - 2)
+                )
+            )
+
+            # A terminal character is roughly twice as tall as it is wide.
+            $pixelHeight = [math]::Max(
+                2,
+                [int][math]::Round(
+                    ($source.Height / $source.Width) * $width
+                )
+            )
+
+            if (($pixelHeight % 2) -ne 0) {
+                $pixelHeight++
+            }
+
+            $bitmap = $null
+            $bitmap =
+                [System.Drawing.Bitmap]::new(
+                    $width,
+                    $pixelHeight
+                )
+
+            try {
+                $graphics =
+                    [System.Drawing.Graphics]::FromImage($bitmap)
+
+                try {
+                    $graphics.InterpolationMode =
+                        [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBilinear
+
+                    $graphics.DrawImage(
+                        $source,
+                        0,
+                        0,
+                        $width,
+                        $pixelHeight
+                    )
+                }
+                finally {
+                    $graphics.Dispose()
+                }
+
+                $escape = [char]27
+
+                Write-Host ""
+                Write-Host "Thumbnail:" -ForegroundColor Yellow
+
+                for ($y = 0; $y -lt $pixelHeight; $y += 2) {
+                    $line =
+                        [System.Text.StringBuilder]::new()
+
+                    for ($x = 0; $x -lt $width; $x++) {
+                        $top = $bitmap.GetPixel($x, $y)
+                        $bottom = $bitmap.GetPixel($x, $y + 1)
+
+                        [void]$line.Append(
+                            "$escape[38;2;$($top.R);$($top.G);$($top.B)m" +
+                            "$escape[48;2;$($bottom.R);$($bottom.G);$($bottom.B)m" +
+                            [char]0x2580
+                        )
+                    }
+
+                    [void]$line.Append("$escape[0m")
+                    [Console]::WriteLine($line.ToString())
+                }
+            }
+            finally {
+                if ($bitmap) {
+                    $bitmap.Dispose()
+                }
+            }
+        }
+        finally {
+            $source.Dispose()
+        }
+    }
+    catch {
+        try {
+            [Console]::Write("$([char]27)[0m")
+        }
+        catch {
+        }
+
+        Write-Host "Could not render color thumbnail: $($_.Exception.Message)"
+    }
+}
+
+function Get-LyricsSearchTitle {
+
+    param(
+        [string]$Title
+    )
+
+    $cleanTitle =
+        $Title -replace
+            '(?i)\s*[\(\[][^(\[]*(official|audio|video|lyrics?|visuali[sz]er|live)[^)\]]*[\)\]]',
+            ''
+
+    return (
+        ($cleanTitle -replace '\s+', ' ').Trim()
+    )
+}
+
+function Show-Lyrics {
+
+    $song = Get-CurrentSongOrWarn
+
+    if (!$song) {
+        return
+    }
+
+    $query = Get-LyricsSearchTitle $song.Title
+
+    Write-Host ""
+    Write-Host "Lyrics: $query" -ForegroundColor Yellow
+    Write-Host "Searching LRCLIB..." -ForegroundColor DarkGray
+
+    try {
+        $uri =
+            "$($Config.LyricsApi)?q=$([uri]::EscapeDataString($query))"
+
+        $results =
+            Invoke-RestMethod `
+                -Uri $uri `
+                -Headers @{
+                    "User-Agent" = "ytmusic-cli/1.0"
+                } `
+                -TimeoutSec 10
+
+        $match = $null
+
+        foreach ($result in $results) {
+            if ($result.plainLyrics -or $result.syncedLyrics) {
+                $match = $result
+                break
+            }
+        }
+
+        if (!$match) {
+            Write-Host "Lyrics not found"
+            return
+        }
+
+        $lyrics = [string]$match.plainLyrics
+
+        if (!$lyrics) {
+            $lyrics =
+                ([string]$match.syncedLyrics) -replace
+                    '(?m)^\[(?:\d{2}:)?\d{2}:\d{2}(?:\.\d+)?\]\s*',
+                    ''
+        }
+
+        Write-Host ""
+        Write-Host (
+            "$($match.trackName) - $($match.artistName)"
+        ) -ForegroundColor Cyan
+        Write-Host ""
+        Write-Host $lyrics.Trim()
+        Write-Host ""
+        Write-Host "Lyrics provided by LRCLIB" -ForegroundColor DarkGray
+    }
+    catch {
+        Write-Host "Could not load lyrics: $($_.Exception.Message)"
+    }
+}
+
+function Show-NowPlayingArt {
+
+    Show-Thumbnail
+    Show-Lyrics
+}
+
 function Show-PlaylistWindow {
 
     param(
@@ -1282,6 +1529,9 @@ function Show-Help {
     Write-Host "  next / prev          Change song"
     Write-Host "  stop                 Stop playback"
     Write-Host "  status               Show playback details"
+    Write-Host "  lyrics               Show lyrics for current song"
+    Write-Host "  thumbnail            Show color ASCII thumbnail"
+    Write-Host "  now                  Show thumbnail and lyrics"
     Write-Host "  shuffle on/off       Toggle shuffle"
     Write-Host "  autorec on/off       Toggle YouTube recommendations"
     Write-Host "  cache                Show cache usage"
@@ -2083,6 +2333,21 @@ try {
         '^status$' {
 
             Show-Status
+        }
+
+        '^lyrics$' {
+
+            Show-Lyrics
+        }
+
+        '^thumbnail$' {
+
+            Show-Thumbnail
+        }
+
+        '^now$' {
+
+            Show-NowPlayingArt
         }
 
         '^cache$' {

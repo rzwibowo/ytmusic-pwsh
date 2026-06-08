@@ -24,6 +24,7 @@ Sesuaikan nilai berikut jika diperlukan:
 
 - `VLCPath` : lokasi lengkap `vlc.exe`
 - `YtDlp` : lokasi lengkap `yt-dlp.exe`
+- `ThumbnailWidth` : lebar thumbnail ANSI berwarna di terminal
 - `JsRuntime` : `node` atau path lengkap ke `node.exe`
 
 Contoh konfigurasi di `playerv2.ps1`:
@@ -31,6 +32,7 @@ Contoh konfigurasi di `playerv2.ps1`:
 ```powershell
     VLCPath = "C:\Path\To\VLC\vlc.exe"
     YtDlp = "C:\Path\To\yt-dlp.exe"
+    ThumbnailWidth = 32
     JsRuntime = "node"
 ```
 
