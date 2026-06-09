@@ -351,7 +351,24 @@ function Get-TuiStatusData {
     }
 
     $barWidth = 20
-    $filled = [math]::Round(($position / 100) * $barWidth)
+    $filled = [math]::Floor(($position / 100) * $barWidth)
+    $stateIcon =
+        switch ($state) {
+            "PLAYING" { ">"; break }
+            "PAUSED" { "||"; break }
+            "STOPPED" { "[]"; break }
+            default { "x" }
+        }
+
+    if ($position -ge 100) {
+        $filledBar = "=" * $barWidth
+        $emptyBar = ""
+    }
+    else {
+        $filledBar = ("=" * $filled) + ">"
+        $emptyBar = "-" * ($barWidth - $filled - 1)
+    }
+
     $autoRec =
         if ($script:AutoRecommend) { "AUTO REC ON" } else { "AUTO REC OFF" }
 
@@ -360,12 +377,13 @@ function Get-TuiStatusData {
 
     return [PSCustomObject]@{
         State = $state
+        StateIcon = $stateIcon
         Title = $title
         Position = $position
         ElapsedTime = $elapsedTime
         TotalTime = $totalTime
-        FilledBar = "#" * $filled
-        EmptyBar = "-" * ($barWidth - $filled)
+        FilledBar = $filledBar
+        EmptyBar = $emptyBar
         AutoRec = $autoRec
     }
 }
@@ -415,7 +433,7 @@ function Write-TuiStatus {
             }
 
         $segments = @(
-            [PSCustomObject]@{ Text = "[$($status.State)] "; Color = $stateColor }
+            [PSCustomObject]@{ Text = "[$($status.StateIcon) $($status.State)] "; Color = $stateColor }
             [PSCustomObject]@{ Text = "$($status.Title) | ["; Color = [ConsoleColor]::Cyan }
             [PSCustomObject]@{ Text = $status.FilledBar; Color = [ConsoleColor]::Green }
             [PSCustomObject]@{ Text = $status.EmptyBar; Color = [ConsoleColor]::DarkGray }
