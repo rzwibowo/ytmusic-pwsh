@@ -1,6 +1,14 @@
 @echo off
 title YouTube Music Player
 
-pwsh -ExecutionPolicy Bypass -NoProfile -File "%~dp0playerv2.ps1"
+if not exist "%~dp0ytplayer.exe" (
+    echo ytplayer.exe belum ada. Jalankan setup.bat terlebih dahulu.
+    pause
+    exit /b 1
+)
+
+pushd "%~dp0"
+"%~dp0ytplayer.exe"
+popd
 
 pause

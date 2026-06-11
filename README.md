@@ -1,46 +1,25 @@
 # YouTube Music Player
 
-Aplikasi ini membutuhkan beberapa dependensi sebelum dapat dijalankan.
+Pemutar musik YouTube berbasis terminal. Implementasi utama kini menggunakan Go
+dan menghasilkan satu executable Windows.
 
-<img width="995" height="538" alt="image" src="https://github.com/user-attachments/assets/df460263-3280-4c08-93e6-458c4251ba13" />
-<img width="995" height="538" alt="image" src="https://github.com/user-attachments/assets/b9a9a0a8-d2c7-4d26-8fe5-5733a1f9320f" />
+## Fitur
 
+- Pencarian, playlist, profile playlist, dan rekomendasi YouTube
+- Playback headless melalui VLC HTTP interface
+- Queue, shuffle, auto-next, preload, dan cache audio
+- Local playlist library dengan data yang kompatibel dengan versi PowerShell
+- Lirik LRCLIB dan thumbnail true-color di terminal
+- Hotkey Space, panah, F1, dan F8
 
 ## Persyaratan
 
-- `PowerShell 7+` (disarankan `pwsh`)
-- `Node.js` sebagai runtime
-- `VLC` media player
-- `yt-dlp`
+- Go 1.25+ untuk build
+- VLC media player
+- Node.js sebagai JavaScript runtime `yt-dlp`
+- Koneksi internet
 
-> Pastikan menggunakan PowerShell 7 atau lebih baru, karena `playerv2.ps1` membutuhkan fitur PowerShell 7.
-
-## Cara pakai
-
-1. Sesuaikan lokasi file jika tidak terdeteksi otomatis.
-2. Jalankan `setup.bat` dari folder proyek untuk mengunduh `yt-dlp` dan memperbarui konfigurasi.
-3. Jalankan `runplayer.bat` untuk memulai aplikasi.
-
-## Konfigurasi
-
-File konfigurasi utama ada di `playerv2.ps1`.
-Sesuaikan nilai berikut jika diperlukan:
-
-- `VLCPath` : lokasi lengkap `vlc.exe`
-- `YtDlp` : lokasi lengkap `yt-dlp.exe`
-- `ThumbnailWidth` : lebar thumbnail ANSI berwarna di terminal
-- `JsRuntime` : `node` atau path lengkap ke `node.exe`
-
-Contoh konfigurasi di `playerv2.ps1`:
-
-```powershell
-    VLCPath = "C:\Path\To\VLC\vlc.exe"
-    YtDlp = "C:\Path\To\yt-dlp.exe"
-    ThumbnailWidth = 32
-    JsRuntime = "node"
-```
-
-## Setup awal
+## Setup
 
 Jalankan:
 
@@ -48,24 +27,36 @@ Jalankan:
 setup.bat
 ```
 
-Skrip akan:
+Setup akan mendeteksi VLC dan Node.js, mengunduh `yt-dlp.exe`, membuat
+`config.json`, lalu membangun `ytplayer.exe`.
 
-- mendeteksi `Node.js` dan `VLC`
-- mengunduh `yt-dlp.exe` jika belum ada
-- memperbarui nilai `VLCPath`, `YtDlp`, dan `JsRuntime` di `playerv2.ps1`
-
-> Jika `Node.js` atau `VLC` belum terpasang, instal manual dari situs resmi, lalu jalankan kembali `setup.bat`.
-
-## Menjalankan aplikasi
-
-Setelah setup selesai, jalankan:
+## Menjalankan
 
 ```bat
 runplayer.bat
 ```
 
-atau langsung:
+Atau:
 
 ```powershell
-pwsh -ExecutionPolicy Bypass -NoProfile -File ".\playerv2.ps1"
+.\ytplayer.exe
 ```
+
+Port VLC dapat dioverride:
+
+```powershell
+.\ytplayer.exe -http-port 9595
+```
+
+Konfigurasi lokal disimpan di `config.json`. File tersebut sengaja tidak masuk
+Git karena berisi path executable spesifik komputer.
+
+## Build Manual
+
+```powershell
+$env:GOCACHE = "$PWD\.gocache"
+go test ./...
+go build -o ytplayer.exe .
+```
+
+Versi PowerShell lama tetap tersedia di `playerv2.ps1` sebagai referensi.

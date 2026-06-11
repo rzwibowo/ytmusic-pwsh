@@ -1,42 +1,44 @@
 @echo off
 title Setup YouTube Music Player
-setlocal enabledelayedexpansion
+setlocal
+pushd "%~dp0"
 
-set SCRIPT_DIR=%~dp0
+where go >nul 2>nul
+if errorlevel 1 (
+    echo Go tidak ditemukan di PATH. Instal Go terlebih dahulu.
+    pause
+    exit /b 1
+)
 
-powershell -NoProfile -ExecutionPolicy Bypass -Command "
-$ErrorActionPreference = 'Stop';
-$root = Split-Path -LiteralPath '%SCRIPT_DIR%' -Parent;
-function Find-Exe { param([string[]]$names); foreach ($name in $names) { $cmd = Get-Command $name -ErrorAction SilentlyContinue; if ($cmd) { return $cmd.Path } } return $null }
-$nodePath = Find-Exe -names @('node.exe');
-$vlcPath = Find-Exe -names @('vlc.exe');
-if (-not $nodePath) {
-    Write-Host 'Node.js tidak ditemukan di PATH.';
-    $inputNode = Read-Host 'Masukkan path lengkap ke node.exe jika sudah terpasang, atau tekan Enter untuk gunakan node dari PATH nanti';
-    if ($inputNode) { $nodePath = $inputNode }
-}
-if (-not $vlcPath) {
-    Write-Host 'VLC tidak ditemukan di PATH.';
-    $inputVlc = Read-Host 'Masukkan path lengkap ke vlc.exe';
-    if ($inputVlc) { $vlcPath = $inputVlc }
-}
-$ytDlpPath = Join-Path $root 'yt-dlp.exe';
-if (-not (Test-Path $ytDlpPath)) {
-    Write-Host 'Mengunduh yt-dlp.exe...';
-    Invoke-WebRequest -Uri 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe' -OutFile $ytDlpPath;
-    Write-Host 'yt-dlp.exe berhasil diunduh ke:' $ytDlpPath;
-} else {
-    Write-Host 'yt-dlp.exe sudah ada di:' $ytDlpPath;
-}
-$file = Join-Path $root 'playerv2.ps1';
-if (-not (Test-Path $file)) { throw 'File playerv2.ps1 tidak ditemukan.' }
-$content = Get-Content -Path $file -Raw;
-if ($vlcPath) { $content = [Regex]::Replace($content, 'VLCPath = ".*?"', "VLCPath = \"$vlcPath\"") }
-$content = [Regex]::Replace($content, 'YtDlp = ".*?"', "YtDlp = \"$ytDlpPath\"");
-if ($nodePath) { $content = [Regex]::Replace($content, 'JsRuntime = ".*?"', "JsRuntime = \"$nodePath\"") } else { $content = [Regex]::Replace($content, 'JsRuntime = ".*?"', 'JsRuntime = "node"') }
-Set-Content -Path $file -Value $content -Encoding UTF8;
-Write-Host ''; Write-Host 'Setup selesai.';
-Write-Host 'Pastikan Node.js dan VLC sudah terpasang jika belum.';
-Write-Host 'Jalankan runplayer.bat untuk memulai aplikasi.';
-" 
+powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+  "$ErrorActionPreference='Stop';" ^
+  "function Find-Exe([string[]]$Names) { foreach($name in $Names) { $cmd=Get-Command $name -ErrorAction SilentlyContinue; if($cmd){ return $cmd.Path } }; return '' };" ^
+  "$root=(Get-Location).Path;" ^
+  "$node=Find-Exe @('node.exe');" ^
+  "$vlc=Find-Exe @('vlc.exe');" ^
+  "if(-not $vlc) { $common=@($env:ProgramFiles + '\VideoLAN\VLC\vlc.exe', ${env:ProgramFiles(x86)} + '\VideoLAN\VLC\vlc.exe'); $vlc=$common | Where-Object { Test-Path $_ } | Select-Object -First 1 };" ^
+  "if(-not $vlc) { $vlc=Read-Host 'Masukkan path lengkap ke vlc.exe' };" ^
+  "$yt=Join-Path $root 'yt-dlp.exe';" ^
+  "if(-not (Test-Path $yt)) { Write-Host 'Mengunduh yt-dlp.exe...'; Invoke-WebRequest 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe' -OutFile $yt };" ^
+  "$cfg=[ordered]@{cacheLimitMB=500;vlcPath=$vlc;ytDlp=$yt;jsRuntime=($(if($node){$node}else{'node'}));httpPort=9494;httpPassword='ytmusic';dataDir='.\data';cacheDir='.\cache';playlistLibraryDir='.\data\playlists';thumbnailWidth=32;lyricsApi='https://lrclib.net/api/search'};" ^
+  "$json=$cfg | ConvertTo-Json;" ^
+  "[IO.File]::WriteAllText((Join-Path $root 'config.json'), $json, [Text.UTF8Encoding]::new($false))"
+
+if errorlevel 1 (
+    echo Setup dependensi gagal.
+    pause
+    exit /b 1
+)
+
+set GOCACHE=%CD%\.gocache
+go build -o ytplayer.exe .
+if errorlevel 1 (
+    echo Build Go gagal.
+    pause
+    exit /b 1
+)
+
+echo.
+echo Setup selesai. Jalankan runplayer.bat.
+popd
 pause
