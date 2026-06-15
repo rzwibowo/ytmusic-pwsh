@@ -44,6 +44,28 @@ func (p *player) listing(target string, extra ...string) (*ytListing, error) {
 	return &listing, nil
 }
 
+func (p *player) videoMetadata(videoID, sourceURL string) (*ytEntry, error) {
+	target := sourceURL
+	if target == "" {
+		target = "https://www.youtube.com/watch?v=" + url.QueryEscape(videoID)
+	}
+	output, err := p.runYtDlp(
+		"--js-runtimes", p.cfg.JSRuntime,
+		"--no-playlist",
+		"--skip-download",
+		"--dump-single-json",
+		target,
+	)
+	if err != nil {
+		return nil, err
+	}
+	var entry ytEntry
+	if err := json.Unmarshal(output, &entry); err != nil {
+		return nil, fmt.Errorf("yt-dlp returned invalid metadata: %w", err)
+	}
+	return &entry, nil
+}
+
 func (p *player) searchYouTube(keyword string) []Song {
 	fmt.Println("\nSearching:", keyword)
 	listing, err := p.listing("ytsearch20:" + keyword)

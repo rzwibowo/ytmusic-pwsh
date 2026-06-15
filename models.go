@@ -39,6 +39,8 @@ type vlcStatus struct {
 type ytEntry struct {
 	ID          string `json:"id"`
 	Title       string `json:"title"`
+	Artist      string `json:"artist"`
+	Track       string `json:"track"`
 	URL         string `json:"url"`
 	WebpageURL  string `json:"webpage_url"`
 	OriginalURL string `json:"original_url"`

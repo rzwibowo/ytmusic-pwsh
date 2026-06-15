@@ -43,6 +43,33 @@ func TestLyricsSearchTitle(t *testing.T) {
 	}
 }
 
+func TestLyricsQueryUsesMetadataArtistAndTrack(t *testing.T) {
+	metadata := &ytEntry{Title: "2112", Artist: "Reality Club", Track: "2112"}
+	if got := lyricsQuery("2112", metadata); got != "Reality Club 2112" {
+		t.Fatalf("lyricsQuery() = %q, want Reality Club 2112", got)
+	}
+}
+
+func TestBestLyricsResultPrefersMatchingArtist(t *testing.T) {
+	results := []lyricsResult{
+		{TrackName: "2112", ArtistName: "Rush", PlainLyrics: "Rush lyrics"},
+		{TrackName: "2112", ArtistName: "Reality Club", PlainLyrics: "Reality Club lyrics"},
+	}
+	got := bestLyricsResult("Reality Club - 2112", results)
+	if got == nil || got.ArtistName != "Reality Club" {
+		t.Fatalf("bestLyricsResult() = %#v, want Reality Club", got)
+	}
+}
+
+func TestBestLyricsResultRejectsDifferentArtist(t *testing.T) {
+	results := []lyricsResult{
+		{TrackName: "2112", ArtistName: "Rush", PlainLyrics: "Rush lyrics"},
+	}
+	if got := bestLyricsResult("Reality Club - 2112", results); got != nil {
+		t.Fatalf("bestLyricsResult() = %#v, want nil", got)
+	}
+}
+
 func TestStatusLines(t *testing.T) {
 	p := &player{autoRecommend: true, currentSong: &Song{Title: "A Song"}}
 	lines := p.statusLines(&vlcStatus{State: "playing", Position: .5, Time: 65, Length: 130}, 60)

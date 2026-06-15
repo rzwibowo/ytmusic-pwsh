@@ -102,6 +102,7 @@ func sampleImage(img image.Image, x, y, width, height int) interface {
 var (
 	titleNoise = regexp.MustCompile(`(?i)\s*[\(\[][^(\[]*(official|audio|video|lyrics?|visuali[sz]er|live)[^)\]]*[\)\]]`)
 	timeTag    = regexp.MustCompile(`(?m)^\[(?:\d{2}:)?\d{2}:\d{2}(?:\.\d+)?\]\s*`)
+	wordNoise  = regexp.MustCompile(`[^\p{L}\p{N}]+`)
 	spaceRun   = regexp.MustCompile(`\s+`)
 )
 
@@ -109,12 +110,67 @@ func lyricsSearchTitle(title string) string {
 	return strings.TrimSpace(spaceRun.ReplaceAllString(titleNoise.ReplaceAllString(title, ""), " "))
 }
 
+func lyricsQuery(title string, metadata *ytEntry) string {
+	if metadata != nil && metadata.Artist != "" {
+		track := metadata.Track
+		if track == "" {
+			track = metadata.Title
+		}
+		if track != "" {
+			return lyricsSearchTitle(metadata.Artist + " " + track)
+		}
+	}
+	return lyricsSearchTitle(title)
+}
+
+func lyricsMatchScore(query string, result lyricsResult) float64 {
+	queryWords := strings.Fields(wordNoise.ReplaceAllString(strings.ToLower(query), " "))
+	if len(queryWords) == 0 {
+		return 0
+	}
+	resultWords := strings.Fields(wordNoise.ReplaceAllString(
+		strings.ToLower(result.ArtistName+" "+result.TrackName), " "))
+	available := make(map[string]int, len(resultWords))
+	for _, word := range resultWords {
+		available[word]++
+	}
+	matches := 0
+	for _, word := range queryWords {
+		if available[word] > 0 {
+			matches++
+			available[word]--
+		}
+	}
+	return float64(matches) / float64(len(queryWords))
+}
+
+func bestLyricsResult(query string, results []lyricsResult) *lyricsResult {
+	bestIndex, bestScore := -1, 0.0
+	for i := range results {
+		if results[i].PlainLyrics == "" && results[i].SyncedLyrics == "" {
+			continue
+		}
+		score := lyricsMatchScore(query, results[i])
+		if score > bestScore {
+			bestIndex, bestScore = i, score
+		}
+	}
+	if bestIndex < 0 || bestScore < 0.6 {
+		return nil
+	}
+	return &results[bestIndex]
+}
+
 func (p *player) showLyrics() {
 	song := p.currentSongOrWarn()
 	if song == nil {
 		return
 	}
-	query := lyricsSearchTitle(song.Title)
+	metadata, err := p.videoMetadata(song.ID, song.SourceURL)
+	if err != nil {
+		metadata = nil
+	}
+	query := lyricsQuery(song.Title, metadata)
 	fmt.Printf("\nLyrics: %s\nSearching LRCLIB...\n", query)
 	req, _ := http.NewRequest(http.MethodGet, p.cfg.LyricsAPI+"?q="+url.QueryEscape(query), nil)
 	req.Header.Set("User-Agent", "ytmusic-cli-go/1.0")
@@ -129,16 +185,15 @@ func (p *player) showLyrics() {
 		fmt.Println("Could not load lyrics:", err)
 		return
 	}
-	for _, result := range results {
-		lyrics := result.PlainLyrics
-		if lyrics == "" {
-			lyrics = timeTag.ReplaceAllString(result.SyncedLyrics, "")
-		}
-		if lyrics != "" {
-			fmt.Printf("\n%s - %s\n\n%s\n\nLyrics provided by LRCLIB\n",
-				result.TrackName, result.ArtistName, strings.TrimSpace(lyrics))
-			return
-		}
+	result := bestLyricsResult(query, results)
+	if result == nil {
+		fmt.Println("Lyrics not found")
+		return
 	}
-	fmt.Println("Lyrics not found")
+	lyrics := result.PlainLyrics
+	if lyrics == "" {
+		lyrics = timeTag.ReplaceAllString(result.SyncedLyrics, "")
+	}
+	fmt.Printf("\n%s - %s\n\n%s\n\nLyrics provided by LRCLIB\n",
+		result.TrackName, result.ArtistName, strings.TrimSpace(lyrics))
 }
