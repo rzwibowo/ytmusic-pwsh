@@ -113,6 +113,33 @@ func TestStatusLines(t *testing.T) {
 	}
 }
 
+func TestAutoNextIgnoresStartupStoppedWithoutProgress(t *testing.T) {
+	p := &player{currentSong: &Song{Title: "A Song"}}
+	if p.autoNext(&vlcStatus{State: "playing"}) {
+		t.Fatal("autoNext() advanced on startup playing status")
+	}
+	if p.autoAdvanceArmed {
+		t.Fatal("autoAdvanceArmed = true without playback progress")
+	}
+	if p.autoNext(&vlcStatus{State: "stopped"}) {
+		t.Fatal("autoNext() advanced after startup stopped status")
+	}
+}
+
+func TestAutoNextArmsAfterPlaybackProgress(t *testing.T) {
+	p := &player{
+		currentSong:  &Song{Title: "A Song"},
+		playlist:     []Song{{Title: "A Song"}, {Title: "Next Song"}},
+		currentIndex: 0,
+	}
+	if p.autoNext(&vlcStatus{State: "playing", Time: 1}) {
+		t.Fatal("autoNext() advanced while playing")
+	}
+	if !p.autoAdvanceArmed {
+		t.Fatal("autoAdvanceArmed = false after playback progress")
+	}
+}
+
 func TestSafeID(t *testing.T) {
 	if got := safeID("PL/a:b?c"); got != "PL_a_b_c" {
 		t.Fatalf("safeID() = %q", got)

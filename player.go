@@ -128,7 +128,9 @@ func (p *player) autoNext(status *vlcStatus) bool {
 		return false
 	}
 	if status.State == "playing" {
-		p.autoAdvanceArmed = true
+		if statusHasPlaybackProgress(status) {
+			p.autoAdvanceArmed = true
+		}
 		return false
 	}
 	if status.State == "stopped" && p.autoAdvanceArmed {
@@ -138,6 +140,10 @@ func (p *player) autoNext(status *vlcStatus) bool {
 		return true
 	}
 	return false
+}
+
+func statusHasPlaybackProgress(status *vlcStatus) bool {
+	return status.Length > 0 || status.Time > 0 || status.Position > 0
 }
 
 func (p *player) loadYouTubePlaylist(rawURL string) {
