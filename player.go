@@ -148,7 +148,9 @@ func (p *player) loadYouTubePlaylist(rawURL string) {
 		return
 	}
 	fmt.Println("\nLoading playlist...")
+	stopSpinner := startSpinner("Loading playlist")
 	source, err := p.youtubePlaylist(rawURL)
+	stopSpinner()
 	if err != nil {
 		fmt.Println("Failed to load playlist:", err)
 		return
@@ -220,7 +222,9 @@ func (p *player) importProfilePlaylist(index int) bool {
 	}
 	item := p.profileResults[index]
 	fmt.Printf("\nImporting playlist:\n%s\n", item.Title)
+	stopSpinner := startSpinner("Importing playlist")
 	source, err := p.youtubePlaylist(item.URL)
+	stopSpinner()
 	if err != nil {
 		fmt.Println("Playlist was not added:", err)
 		return false

@@ -1,6 +1,8 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"image"
 	_ "image/jpeg"
@@ -13,6 +15,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 )
 
 func (p *player) currentSongOrWarn() *Song {
@@ -28,20 +31,25 @@ func (p *player) thumbnailFile(videoID string) string {
 	if fileExists(path) {
 		return path
 	}
+	stopSpinner := startSpinner("Loading thumbnail")
 	resp, err := p.httpClient.Get("https://i.ytimg.com/vi/" + url.PathEscape(videoID) + "/hqdefault.jpg")
 	if err != nil {
+		stopSpinner()
 		return ""
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
+		stopSpinner()
 		return ""
 	}
 	file, err := os.Create(path)
 	if err != nil {
+		stopSpinner()
 		return ""
 	}
 	_, copyErr := io.Copy(file, resp.Body)
 	closeErr := file.Close()
+	stopSpinner()
 	if copyErr != nil || closeErr != nil {
 		_ = os.Remove(path)
 		return ""
@@ -93,15 +101,19 @@ func (p *player) showSearchThumbnail(raw string) {
 }
 
 func (p *player) fetchThumbnailImage(videoID string) (image.Image, error) {
+	stopSpinner := startSpinner("Loading thumbnail")
 	resp, err := p.httpClient.Get("https://i.ytimg.com/vi/" + url.PathEscape(videoID) + "/hqdefault.jpg")
 	if err != nil {
+		stopSpinner()
 		return nil, err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
+		stopSpinner()
 		return nil, fmt.Errorf("HTTP %d", resp.StatusCode)
 	}
 	img, _, err := image.Decode(resp.Body)
+	stopSpinner()
 	return img, err
 }
 
@@ -148,6 +160,8 @@ var (
 	wordNoise  = regexp.MustCompile(`[^\p{L}\p{N}]+`)
 	spaceRun   = regexp.MustCompile(`\s+`)
 )
+
+const lyricsSearchTimeout = 10 * time.Second
 
 func lyricsSearchTitle(title string) string {
 	return strings.TrimSpace(spaceRun.ReplaceAllString(titleNoise.ReplaceAllString(title, ""), " "))
@@ -209,25 +223,45 @@ func (p *player) showLyrics() {
 	if song == nil {
 		return
 	}
+	stopSpinner := startSpinner("Loading YouTube metadata")
 	metadata, err := p.videoMetadata(song.ID, song.SourceURL)
+	stopSpinner()
 	if err != nil {
 		metadata = nil
 	}
 	query := lyricsQuery(song.Title, metadata)
-	fmt.Printf("\nLyrics: %s\nSearching LRCLIB...\n", query)
-	req, _ := http.NewRequest(http.MethodGet, p.cfg.LyricsAPI+"?q="+url.QueryEscape(query), nil)
+	fmt.Printf("\nLyrics: %s\n", query)
+	ctx, cancel := context.WithTimeout(context.Background(), lyricsSearchTimeout)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, p.cfg.LyricsAPI+"?q="+url.QueryEscape(query), nil)
+	if err != nil {
+		fmt.Println("Could not load lyrics:", err)
+		return
+	}
 	req.Header.Set("User-Agent", "ytmusic-cli-go/1.0")
+	stopSpinner = startSpinner("Searching LRCLIB")
 	resp, err := p.httpClient.Do(req)
 	if err != nil {
+		stopSpinner()
+		if errors.Is(err, context.DeadlineExceeded) {
+			fmt.Println("Lyrics search timed out")
+			return
+		}
 		fmt.Println("Could not load lyrics:", err)
 		return
 	}
 	defer resp.Body.Close()
 	var results []lyricsResult
 	if err := decodeJSON(resp.Body, &results); err != nil {
+		stopSpinner()
+		if errors.Is(err, context.DeadlineExceeded) {
+			fmt.Println("Lyrics search timed out")
+			return
+		}
 		fmt.Println("Could not load lyrics:", err)
 		return
 	}
+	stopSpinner()
 	result := bestLyricsResult(query, results)
 	if result == nil {
 		fmt.Println("Lyrics not found")

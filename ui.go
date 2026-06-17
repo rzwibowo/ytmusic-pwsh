@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 	"unicode"
 )
@@ -35,6 +36,36 @@ type keyPress struct {
 
 func colorText(color, text string) string {
 	return color + text + ansiReset
+}
+
+func startSpinner(label string) func() {
+	done := make(chan struct{})
+	stopped := make(chan struct{})
+	var once sync.Once
+	frames := []rune{'|', '/', '-', '\\'}
+	fmt.Printf("%s %c", label, frames[0])
+	go func() {
+		defer close(stopped)
+		ticker := time.NewTicker(120 * time.Millisecond)
+		defer ticker.Stop()
+		frame := 1
+		for {
+			select {
+			case <-done:
+				fmt.Print("\r" + strings.Repeat(" ", len(label)+2) + "\r")
+				return
+			case <-ticker.C:
+				fmt.Printf("\r%s %c", label, frames[frame%len(frames)])
+				frame++
+			}
+		}
+	}()
+	return func() {
+		once.Do(func() {
+			close(done)
+			<-stopped
+		})
+	}
 }
 
 func formatPlaybackTime(seconds int) string {

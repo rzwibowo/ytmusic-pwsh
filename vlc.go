@@ -73,13 +73,16 @@ func (p *player) startVLC() error {
 	if err := attachProcessToJob(cmd.Process); err != nil {
 		fmt.Println("Warning: VLC could not be attached to terminal cleanup:", err)
 	}
+	stopSpinner := startSpinner("Waiting for VLC")
 	deadline := time.Now().Add(20 * time.Second)
 	for time.Now().Before(deadline) {
 		if _, err := p.getVLCStatus(); err == nil {
+			stopSpinner()
 			return nil
 		}
 		time.Sleep(250 * time.Millisecond)
 	}
+	stopSpinner()
 	p.stopVLC()
 	return fmt.Errorf("VLC did not start on HTTP port %d", p.cfg.HTTPPort)
 }
@@ -102,6 +105,8 @@ func (p *player) stopVLC() {
 }
 
 func (p *player) playStream(stream string) error {
+	stopSpinner := startSpinner("Opening in VLC")
+	defer stopSpinner()
 	if err := p.vlcRequest("pl_empty", nil); err != nil {
 		return err
 	}

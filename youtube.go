@@ -68,7 +68,9 @@ func (p *player) videoMetadata(videoID, sourceURL string) (*ytEntry, error) {
 
 func (p *player) searchYouTube(keyword string) []Song {
 	fmt.Println("\nSearching:", keyword)
+	stopSpinner := startSpinner("Searching YouTube")
 	listing, err := p.listing("ytsearch20:" + keyword)
+	stopSpinner()
 	if err != nil {
 		fmt.Println("Search failed:", err)
 		return nil
@@ -142,7 +144,9 @@ func (p *player) findProfilePlaylists(profile string) []PlaylistSource {
 	}
 	fmt.Println("\nLoading public playlists from:")
 	fmt.Println(target)
+	stopSpinner := startSpinner("Loading profile playlists")
 	listing, err := p.listing(target)
+	stopSpinner()
 	if err != nil {
 		fmt.Println("Failed to load profile playlists:", err)
 		return nil
@@ -173,7 +177,9 @@ func (p *player) recommendation(videoID string) *Song {
 	}
 	fmt.Println("\nLoading YouTube recommendations...")
 	target := "https://www.youtube.com/watch?v=" + url.QueryEscape(videoID) + "&list=RD" + url.QueryEscape(videoID)
+	stopSpinner := startSpinner("Loading YouTube recommendations")
 	listing, err := p.listing(target, "--playlist-end", "25")
+	stopSpinner()
 	if err != nil {
 		fmt.Println("Could not load YouTube recommendations:", err)
 		return nil
@@ -212,13 +218,11 @@ func (p *player) streamURL(videoID, sourceURL string) string {
 	}
 	done := make(chan error, 1)
 	go func() { done <- cmd.Wait() }()
-	spinner := []byte{'|', '/', '-', '\\'}
-	fmt.Print("[STREAM] |")
-	frame := 0
+	stopSpinner := startSpinner("[STREAM]")
 	for {
 		select {
 		case err := <-done:
-			fmt.Print("\r[STREAM]   \n")
+			stopSpinner()
 			if err != nil {
 				fmt.Println(strings.TrimSpace(stderr.String()))
 				return ""
@@ -230,8 +234,6 @@ func (p *player) streamURL(videoID, sourceURL string) string {
 			}
 			return ""
 		default:
-			fmt.Printf("\r[STREAM] %c", spinner[frame%len(spinner)])
-			frame++
 			sleep100ms()
 		}
 	}
