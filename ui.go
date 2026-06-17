@@ -103,9 +103,14 @@ func (p *player) statusLines(status *vlcStatus, width int) [3]string {
 	if p.autoRecommend {
 		auto = "AUTO REC ON"
 	}
+	shuffle := "SHUFFLE OFF"
+	if p.shuffle {
+		shuffle = "SHUFFLE ON"
+	}
 	thirdLine := fmt.Sprintf(
-		"%s | Space Play/Pause | Left/Right Prev/Next | Up/Down List | F1 Help | F8 Toggle",
+		"%s | %s | Space Play/Pause | Left/Right Prev/Next | Up/Down List | F1 Help | F8 Toggle",
 		auto,
+		shuffle,
 	)
 	return [3]string{
 		truncateLine(firstLine, width),
