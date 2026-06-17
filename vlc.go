@@ -73,12 +73,14 @@ func (p *player) startVLC() error {
 	if err := attachProcessToJob(cmd.Process); err != nil {
 		fmt.Println("Warning: VLC could not be attached to terminal cleanup:", err)
 	}
-	for range 30 {
-		time.Sleep(100 * time.Millisecond)
+	deadline := time.Now().Add(20 * time.Second)
+	for time.Now().Before(deadline) {
 		if _, err := p.getVLCStatus(); err == nil {
 			return nil
 		}
+		time.Sleep(250 * time.Millisecond)
 	}
+	p.stopVLC()
 	return fmt.Errorf("VLC did not start on HTTP port %d", p.cfg.HTTPPort)
 }
 
