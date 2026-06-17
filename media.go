@@ -71,12 +71,42 @@ func (p *player) showThumbnail() {
 		return
 	}
 	width := clamp(p.cfg.ThumbnailWidth, 8, maxInt(8, terminalWidth()-2))
-	bounds := img.Bounds()
-	pixelHeight := maxInt(2, int(math.Round(float64(bounds.Dy())/float64(bounds.Dx())*float64(width))))
-	if pixelHeight%2 != 0 {
-		pixelHeight++
-	}
 	fmt.Println("\nThumbnail:")
+	renderThumbnail(img, width, 0)
+}
+
+func (p *player) showSearchThumbnail(raw string) {
+	index, ok := oneBasedIndex(raw)
+	if !ok || index >= len(p.searchResults) {
+		fmt.Println("Invalid search result number")
+		return
+	}
+	song := p.searchResults[index]
+	img, err := p.fetchThumbnailImage(song.ID)
+	if err != nil {
+		fmt.Println("Could not load thumbnail:", err)
+		return
+	}
+	fmt.Printf("\nThumbnail: %s\n", song.Title)
+	width := clamp(p.cfg.ThumbnailWidth, 8, maxInt(8, terminalWidth()-2))
+	renderThumbnail(img, width, 0)
+}
+
+func (p *player) fetchThumbnailImage(videoID string) (image.Image, error) {
+	resp, err := p.httpClient.Get("https://i.ytimg.com/vi/" + url.PathEscape(videoID) + "/hqdefault.jpg")
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("HTTP %d", resp.StatusCode)
+	}
+	img, _, err := image.Decode(resp.Body)
+	return img, err
+}
+
+func renderThumbnail(img image.Image, width, rows int) {
+	width, pixelHeight := thumbnailRenderSize(img.Bounds(), width, rows)
 	for y := 0; y < pixelHeight; y += 2 {
 		for x := 0; x < width; x++ {
 			top := sampleImage(img, x, y, width, pixelHeight)
@@ -88,6 +118,19 @@ func (p *player) showThumbnail() {
 		}
 		fmt.Print("\x1b[0m\n")
 	}
+}
+
+func thumbnailRenderSize(bounds image.Rectangle, width, rows int) (int, int) {
+	if rows > 0 {
+		pixelHeight := maxInt(2, rows*2)
+		derivedWidth := int(math.Round(float64(bounds.Dx()) / float64(bounds.Dy()) * float64(pixelHeight)))
+		return maxInt(8, derivedWidth), pixelHeight
+	}
+	pixelHeight := maxInt(2, int(math.Round(float64(bounds.Dy())/float64(bounds.Dx())*float64(width))))
+	if pixelHeight%2 != 0 {
+		pixelHeight++
+	}
+	return width, pixelHeight
 }
 
 func sampleImage(img image.Image, x, y, width, height int) interface {

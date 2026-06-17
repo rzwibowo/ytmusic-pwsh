@@ -76,13 +76,24 @@ func (p *player) searchYouTube(keyword string) []Song {
 	songs := make([]Song, 0, len(listing.Entries))
 	for _, entry := range listing.Entries {
 		if entry.ID != "" && entry.Title != "" {
-			songs = append(songs, Song{ID: entry.ID, Title: entry.Title})
+			songs = append(songs, songFromYtEntry(entry))
 		}
 	}
 	if len(songs) == 0 {
 		fmt.Println("No search results found")
 	}
 	return songs
+}
+
+func songFromYtEntry(entry ytEntry) Song {
+	channel := entry.Channel
+	if channel == "" {
+		channel = entry.Uploader
+	}
+	if channel == "" {
+		channel = entry.Artist
+	}
+	return Song{ID: entry.ID, Title: entry.Title, Channel: channel}
 }
 
 func (p *player) youtubePlaylist(target string) (*PlaylistSource, error) {
@@ -93,7 +104,7 @@ func (p *player) youtubePlaylist(target string) (*PlaylistSource, error) {
 	songs := make([]Song, 0, len(listing.Entries))
 	for _, entry := range listing.Entries {
 		if entry.ID != "" && entry.Title != "" {
-			songs = append(songs, Song{ID: entry.ID, Title: entry.Title})
+			songs = append(songs, songFromYtEntry(entry))
 		}
 	}
 	if len(songs) == 0 {
@@ -173,7 +184,8 @@ func (p *player) recommendation(videoID string) *Song {
 	}
 	for _, entry := range listing.Entries {
 		if entry.ID != "" && entry.Title != "" && entry.ID != videoID && !known[entry.ID] {
-			return &Song{ID: entry.ID, Title: entry.Title}
+			song := songFromYtEntry(entry)
+			return &song
 		}
 	}
 	fmt.Println("No new YouTube recommendation found")

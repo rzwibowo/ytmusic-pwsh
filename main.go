@@ -163,12 +163,14 @@ func (p *player) execute(command string) bool {
 		p.searchResults = p.searchYouTube(argumentAfter(command, "search "))
 		showSongs(p.searchResults)
 		if len(p.searchResults) > 0 {
-			fmt.Println("\nUse: plays <number>\nOr : queues <number>")
+			fmt.Println("\nUse: plays <number>\nOr : queues <number>\nOr : thumbs <number>")
 		}
 	case strings.HasPrefix(lower, "plays "):
 		p.playSearchResult(argumentAfter(command, "plays "))
 	case strings.HasPrefix(lower, "queues "):
 		p.queueSearchResult(argumentAfter(command, "queues "))
+	case strings.HasPrefix(lower, "thumbs "):
+		p.showSearchThumbnail(argumentAfter(command, "thumbs "))
 	case strings.HasPrefix(lower, "playurl "):
 		p.playSingleURL(argumentAfter(command, "playurl "))
 	case strings.HasPrefix(lower, "play "):

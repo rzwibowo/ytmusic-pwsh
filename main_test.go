@@ -1,6 +1,7 @@
 package main
 
 import (
+	"image"
 	"os"
 	"path/filepath"
 	"testing"
@@ -36,6 +37,20 @@ func TestProfilePlaylistsURL(t *testing.T) {
 	}
 }
 
+func TestSongFromYtEntryUsesChannelMetadata(t *testing.T) {
+	got := songFromYtEntry(ytEntry{ID: "abc", Title: "A Song", Channel: "A Channel"})
+	if got.Channel != "A Channel" {
+		t.Fatalf("Channel = %q, want A Channel", got.Channel)
+	}
+}
+
+func TestSongFromYtEntryFallsBackToUploader(t *testing.T) {
+	got := songFromYtEntry(ytEntry{ID: "abc", Title: "A Song", Uploader: "An Uploader"})
+	if got.Channel != "An Uploader" {
+		t.Fatalf("Channel = %q, want An Uploader", got.Channel)
+	}
+}
+
 func TestLyricsSearchTitle(t *testing.T) {
 	got := lyricsSearchTitle("Artist - Song (Official Video) [Live Audio]")
 	if got != "Artist - Song" {
@@ -67,6 +82,20 @@ func TestBestLyricsResultRejectsDifferentArtist(t *testing.T) {
 	}
 	if got := bestLyricsResult("Reality Club - 2112", results); got != nil {
 		t.Fatalf("bestLyricsResult() = %#v, want nil", got)
+	}
+}
+
+func TestThumbnailRenderSizeUsesFixedRows(t *testing.T) {
+	width, pixelHeight := thumbnailRenderSize(image.Rect(0, 0, 480, 360), 0, 2)
+	if width != 8 || pixelHeight != 4 {
+		t.Fatalf("thumbnailRenderSize() = %d, %d, want 8, 4", width, pixelHeight)
+	}
+}
+
+func TestThumbnailRenderSizeKeepsConfiguredWidth(t *testing.T) {
+	width, pixelHeight := thumbnailRenderSize(image.Rect(0, 0, 480, 360), 32, 0)
+	if width != 32 || pixelHeight != 24 {
+		t.Fatalf("thumbnailRenderSize() = %d, %d, want 32, 24", width, pixelHeight)
 	}
 }
 

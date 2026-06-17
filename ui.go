@@ -202,6 +202,10 @@ func (p *player) readCommand(input *consoleInput) string {
 
 func showSongs(songs []Song) {
 	for i, song := range songs {
+		if song.Channel != "" {
+			fmt.Printf("%3d. %s - %s\n", i+1, song.Title, song.Channel)
+			continue
+		}
 		fmt.Printf("%3d. %s\n", i+1, song.Title)
 	}
 }
@@ -274,6 +278,7 @@ func showHelp() {
   search <keyword>     Search YouTube
   plays <number>       Play a search result
   queues <number>      Queue a search result
+  thumbs <number>      Show a search result thumbnail
   playurl <url>        Play a direct media/YouTube URL
   play <number>        Play a playlist song
   queue <number>       Add playlist song to queue

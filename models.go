@@ -3,6 +3,7 @@ package main
 type Song struct {
 	ID        string `json:"Id"`
 	Title     string `json:"Title"`
+	Channel   string `json:"Channel,omitempty"`
 	SourceURL string `json:"SourceUrl,omitempty"`
 }
 
@@ -39,6 +40,8 @@ type vlcStatus struct {
 type ytEntry struct {
 	ID          string `json:"id"`
 	Title       string `json:"title"`
+	Channel     string `json:"channel"`
+	Uploader    string `json:"uploader"`
 	Artist      string `json:"artist"`
 	Track       string `json:"track"`
 	URL         string `json:"url"`
