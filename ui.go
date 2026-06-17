@@ -99,17 +99,6 @@ func (p *player) statusLines(status *vlcStatus, width int) [3]string {
 	title := p.currentTitle()
 	firstLine := fmt.Sprintf("[%s %s] %s", icon, state, title)
 
-	elapsedTime := formatPlaybackTime(elapsed)
-	totalTime := formatPlaybackTime(total)
-	timeText := fmt.Sprintf(" %s / %s", elapsedTime, totalTime)
-	barWidth := maxInt(5, width-len([]rune(timeText))-2)
-	filled := position * barWidth / 100
-	var bar string
-	if position >= 100 {
-		bar = strings.Repeat("=", barWidth)
-	} else {
-		bar = strings.Repeat("=", filled) + ">" + strings.Repeat("-", barWidth-filled-1)
-	}
 	auto := "AUTO REC OFF"
 	if p.autoRecommend {
 		auto = "AUTO REC ON"
@@ -120,9 +109,45 @@ func (p *player) statusLines(status *vlcStatus, width int) [3]string {
 	)
 	return [3]string{
 		truncateLine(firstLine, width),
-		truncateLine("["+bar+"]"+timeText, width),
+		playbackProgressLine(position, elapsed, total, width, false),
 		truncateLine(thirdLine, width),
 	}
+}
+
+func playbackProgressLine(position, elapsed, total, width int, colored bool) string {
+	elapsedTime := formatPlaybackTime(elapsed)
+	totalTime := formatPlaybackTime(total)
+	timeText := fmt.Sprintf(" %s / %s", elapsedTime, totalTime)
+	barWidth := maxInt(5, width-len([]rune(timeText))-2)
+	if !colored {
+		return truncateLine("["+seekBar(position, barWidth)+"]"+timeText, width)
+	}
+	return coloredSeekBar(position, barWidth) + ansiDarkGray + timeText + ansiReset
+}
+
+func seekBar(position, width int) string {
+	if width <= 0 {
+		return ""
+	}
+	if position >= 100 {
+		return strings.Repeat("=", width)
+	}
+	filled := position * width / 100
+	return strings.Repeat("=", filled) + "o" + strings.Repeat("-", width-filled-1)
+}
+
+func coloredSeekBar(position, width int) string {
+	bar := seekBar(position, width)
+	if position >= 100 {
+		return ansiDarkGray + "[" + ansiGreen + bar + ansiDarkGray + "]"
+	}
+	marker := strings.IndexRune(bar, 'o')
+	if marker < 0 {
+		return ansiDarkGray + "[" + bar + "]"
+	}
+	return ansiDarkGray + "[" +
+		ansiGreen + bar[:marker+1] +
+		ansiDarkGray + bar[marker+1:] + "]"
 }
 
 func truncateLine(line string, width int) string {
@@ -139,10 +164,13 @@ func truncateLine(line string, width int) string {
 func (p *player) writeStatus(status *vlcStatus) {
 	width := maxInt(20, terminalWidth()-1)
 	lines := p.statusLines(status, width)
+	position, elapsed, total := 0, 0, 0
 	stateColor := ansiDarkGray
 	if status == nil {
 		stateColor = ansiRed
 	} else {
+		position = clamp(int(status.Position*100+0.5), 0, 100)
+		elapsed, total = maxInt(status.Time, 0), maxInt(status.Length, 0)
 		switch strings.ToLower(status.State) {
 		case "playing":
 			stateColor = ansiGreen
@@ -155,7 +183,7 @@ func (p *player) writeStatus(status *vlcStatus) {
 	fmt.Print("\x1b7\x1b[3A\r")
 	writeStatusLine(stateColor, lines[0])
 	fmt.Print("\n")
-	writeStatusLine(ansiGreen, lines[1])
+	writeStatusLine("", playbackProgressLine(position, elapsed, total, width, true))
 	fmt.Print("\n")
 	writeStatusLine(ansiCyan, lines[2])
 	fmt.Print("\x1b8")

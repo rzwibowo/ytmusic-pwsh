@@ -102,10 +102,10 @@ func TestThumbnailRenderSizeKeepsConfiguredWidth(t *testing.T) {
 func TestStatusLines(t *testing.T) {
 	p := &player{autoRecommend: true, currentSong: &Song{Title: "A Song"}}
 	lines := p.statusLines(&vlcStatus{State: "playing", Position: .5, Time: 65, Length: 130}, 60)
-	if lines[0] != "[> PLAYING] A Song" {
+	if lines[0] != "[► PLAYING] A Song" {
 		t.Fatalf("title line = %q", lines[0])
 	}
-	if lines[1] != "[=======================>----------------------] 1:05 / 2:10" {
+	if lines[1] != "[=======================o----------------------] 1:05 / 2:10" {
 		t.Fatalf("seek line = %q", lines[1])
 	}
 	if lines[2] != "AUTO REC ON | Space Play/Pause | Left/Right Prev/Next | U..." {
