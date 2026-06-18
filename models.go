@@ -4,6 +4,8 @@ type Song struct {
 	ID        string `json:"Id"`
 	Title     string `json:"Title"`
 	Channel   string `json:"Channel,omitempty"`
+	Artist    string `json:"Artist,omitempty"`
+	Track     string `json:"Track,omitempty"`
 	SourceURL string `json:"SourceUrl,omitempty"`
 }
 

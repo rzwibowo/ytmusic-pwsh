@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -19,7 +20,7 @@ func (p *player) playSong(index int) {
 	p.currentSong = &p.playlist[index]
 	p.currentIndex = index
 	p.autoAdvanceArmed = false
-	fmt.Printf("\nNow Playing:\n%s\n", song.Title)
+	fmt.Printf("\nNow Playing:\n%s\n", song.nowPlayingTitle())
 	cached := p.cacheFile(song.ID)
 	if cached != "" {
 		now := time.Now()
@@ -325,5 +326,17 @@ func (p *player) currentTitle() string {
 	if p.currentSong == nil {
 		return "Nothing playing"
 	}
-	return p.currentSong.Title
+	return p.currentSong.nowPlayingTitle()
+}
+
+func (s Song) nowPlayingTitle() string {
+	title := strings.TrimSpace(s.Track)
+	if title == "" {
+		title = strings.TrimSpace(s.Title)
+	}
+	artist := strings.TrimSpace(s.Artist)
+	if artist == "" {
+		return title
+	}
+	return fmt.Sprintf("%s - %s", title, artist)
 }

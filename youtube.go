@@ -95,7 +95,7 @@ func songFromYtEntry(entry ytEntry) Song {
 	if channel == "" {
 		channel = entry.Artist
 	}
-	return Song{ID: entry.ID, Title: entry.Title, Channel: channel}
+	return Song{ID: entry.ID, Title: entry.Title, Channel: channel, Artist: entry.Artist, Track: entry.Track}
 }
 
 func (p *player) youtubePlaylist(target string) (*PlaylistSource, error) {

@@ -51,6 +51,27 @@ func TestSongFromYtEntryFallsBackToUploader(t *testing.T) {
 	}
 }
 
+func TestSongFromYtEntryKeepsArtistMetadata(t *testing.T) {
+	got := songFromYtEntry(ytEntry{ID: "abc", Title: "Official Video", Artist: "An Artist", Track: "A Song"})
+	if got.Artist != "An Artist" || got.Track != "A Song" {
+		t.Fatalf("metadata = %q, %q; want An Artist, A Song", got.Artist, got.Track)
+	}
+}
+
+func TestNowPlayingTitleUsesArtistMetadata(t *testing.T) {
+	got := Song{Title: "Official Video", Artist: "An Artist", Track: "A Song"}.nowPlayingTitle()
+	if got != "A Song - An Artist" {
+		t.Fatalf("nowPlayingTitle() = %q, want A Song - An Artist", got)
+	}
+}
+
+func TestNowPlayingTitleOmitsMissingArtist(t *testing.T) {
+	got := Song{Title: "A Song"}.nowPlayingTitle()
+	if got != "A Song" {
+		t.Fatalf("nowPlayingTitle() = %q, want A Song", got)
+	}
+}
+
 func TestLyricsSearchTitle(t *testing.T) {
 	got := lyricsSearchTitle("Artist - Song (Official Video) [Live Audio]")
 	if got != "Artist - Song" {
@@ -100,9 +121,9 @@ func TestThumbnailRenderSizeKeepsConfiguredWidth(t *testing.T) {
 }
 
 func TestStatusLines(t *testing.T) {
-	p := &player{autoRecommend: true, shuffle: true, currentSong: &Song{Title: "A Song"}}
+	p := &player{autoRecommend: true, shuffle: true, currentSong: &Song{Title: "A Song", Artist: "An Artist"}}
 	lines := p.statusLines(&vlcStatus{State: "playing", Position: .5, Time: 65, Length: 130}, 60)
-	if lines[0] != "[> PLAYING] A Song" {
+	if lines[0] != "[> PLAYING] A Song - An Artist" {
 		t.Fatalf("title line = %q", lines[0])
 	}
 	if lines[1] != "[=======================o----------------------] 1:05 / 2:10" {
