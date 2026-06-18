@@ -198,6 +198,16 @@ func writeStatusLine(color, line string) {
 	fmt.Printf("\x1b[2K\r%s%s%s", color, line, ansiReset)
 }
 
+func clearInteractiveBlock() {
+	fmt.Print("\r\x1b[2K\x1b[1A\x1b[2K\x1b[1A\x1b[2K\x1b[1A\x1b[2K\r")
+}
+
+func (p *player) submitCommand(buffer []rune) string {
+	command := sanitizeInput(string(buffer))
+	clearInteractiveBlock()
+	return command
+}
+
 func (p *player) readCommand(input *consoleInput) string {
 	fmt.Print("\n\n\n", colorText(ansiCyan, "ytmusic: "))
 	var buffer []rune
@@ -207,8 +217,7 @@ func (p *player) readCommand(input *consoleInput) string {
 		if key, ok := input.readKey(100 * time.Millisecond); ok {
 			switch key.virtual {
 			case keyEnter:
-				fmt.Println()
-				return sanitizeInput(string(buffer))
+				return p.submitCommand(buffer)
 			case keyBackspace:
 				if len(buffer) > 0 {
 					buffer = buffer[:len(buffer)-1]
@@ -219,26 +228,19 @@ func (p *player) readCommand(input *consoleInput) string {
 			if len(buffer) == 0 {
 				switch key.virtual {
 				case keyF1:
-					fmt.Println()
-					return "help"
+					return p.submitCommand([]rune("help"))
 				case keyF8:
-					fmt.Println()
-					return "__toggle_autorecommend"
+					return p.submitCommand([]rune("__toggle_autorecommend"))
 				case keySpace:
-					fmt.Println()
-					return "__toggle_playback"
+					return p.submitCommand([]rune("__toggle_playback"))
 				case keyLeft:
-					fmt.Println()
-					return "prev"
+					return p.submitCommand([]rune("prev"))
 				case keyRight:
-					fmt.Println()
-					return "next"
+					return p.submitCommand([]rune("next"))
 				case keyUp:
-					fmt.Println()
-					return "__playlist_up"
+					return p.submitCommand([]rune("__playlist_up"))
 				case keyDown:
-					fmt.Println()
-					return "__playlist_down"
+					return p.submitCommand([]rune("__playlist_down"))
 				}
 			}
 			if key.char != 0 && !unicode.IsControl(key.char) {
