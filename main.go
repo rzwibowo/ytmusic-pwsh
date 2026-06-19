@@ -103,6 +103,7 @@ func ensureDirectories(cfg Config) error {
 }
 
 func (p *player) execute(command string) bool {
+	command = expandCommand(command)
 	lower := strings.ToLower(command)
 	switch {
 	case lower == "quit":
@@ -117,6 +118,10 @@ func (p *player) execute(command string) bool {
 		p.autoRecommend = !p.autoRecommend
 		p.saveState()
 		fmt.Println("YouTube Auto Recommendation", onOff(p.autoRecommend))
+	case lower == "__toggle_shuffle":
+		p.shuffle = !p.shuffle
+		p.saveState()
+		fmt.Println("Shuffle", onOff(p.shuffle))
 	case lower == "__toggle_playback":
 		p.togglePlayback()
 	case strings.HasPrefix(lower, "playlist load "):
@@ -322,6 +327,107 @@ func (p *player) showCache() {
 			fmt.Printf("%-48s %8.2f MB\n", entry.Name(), float64(info.Size())/(1024*1024))
 		}
 	}
+}
+
+type commandAlias struct {
+	alias   string
+	command string
+}
+
+func commandAliases() []commandAlias {
+	return []commandAlias{
+		{"plld", "playlist load"},
+		{"plsv", "playlist save"},
+		{"plsh", "playlist show"},
+		{"pfld", "profile load"},
+		{"pfsh", "profile show"},
+		{"pfad", "profile add"},
+		{"plmg", "playlist manager"},
+		{"plus", "playlist use"},
+		{"plpy", "playlist play"},
+		{"pldl", "playlist delete"},
+		{"s", "search"},
+		{"ps", "plays"},
+		{"qs", "queues"},
+		{"tbs", "thumbs"},
+		{"pu", "playurl"},
+		{"p", "play"},
+		{"q", "queue"},
+		{"ly", "lyrics"},
+		{"tb", "thumbnail"},
+	}
+}
+
+func baseCommands() []string {
+	return []string{
+		"playlist load",
+		"playlist save",
+		"playlist show",
+		"profile load",
+		"profile show",
+		"profile add",
+		"playlist manager",
+		"playlist use",
+		"playlist play",
+		"playlist delete",
+		"search",
+		"plays",
+		"queues",
+		"thumbs",
+		"playurl",
+		"play",
+		"queue",
+		"pause",
+		"resume",
+		"stop",
+		"next",
+		"prev",
+		"shuffle on",
+		"shuffle off",
+		"autorec on",
+		"autorec off",
+		"status",
+		"lyrics",
+		"thumbnail",
+		"now",
+		"cache",
+		"help",
+		"quit",
+	}
+}
+
+func commandCompletions() []string {
+	commands := append([]string{}, baseCommands()...)
+	for _, item := range commandAliases() {
+		commands = append(commands, item.alias)
+	}
+	return commands
+}
+
+func commonPrefix(left, right string) string {
+	leftRunes := []rune(left)
+	rightRunes := []rune(right)
+	limit := minInt(len(leftRunes), len(rightRunes))
+	for i := 0; i < limit; i++ {
+		if leftRunes[i] != rightRunes[i] {
+			return string(leftRunes[:i])
+		}
+	}
+	return string(leftRunes[:limit])
+}
+
+func expandCommand(command string) string {
+	command = sanitizeInput(command)
+	lower := strings.ToLower(command)
+	for _, item := range commandAliases() {
+		if lower == item.alias {
+			return item.command
+		}
+		if strings.HasPrefix(lower, item.alias+" ") {
+			return item.command + command[len(item.alias):]
+		}
+	}
+	return command
 }
 
 func sanitizeInput(value string) string {

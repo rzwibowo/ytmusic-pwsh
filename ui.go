@@ -16,7 +16,9 @@ const (
 	keyUp        = 0x26
 	keyRight     = 0x27
 	keyDown      = 0x28
+	keyTab       = 0x09
 	keyF1        = 0x70
+	keyF7        = 0x76
 	keyF8        = 0x77
 )
 
@@ -99,16 +101,16 @@ func (p *player) statusLines(status *vlcStatus, width int) [3]string {
 	title := p.currentTitle()
 	firstLine := fmt.Sprintf("[%s %s] %s", icon, state, title)
 
-	auto := "AUTO REC OFF"
+	auto := "AUTO REC (F8) OFF"
 	if p.autoRecommend {
-		auto = "AUTO REC ON"
+		auto = "AUTO REC (F8) ON"
 	}
-	shuffle := "SHUFFLE OFF"
+	shuffle := "SHUFFLE (F7) OFF"
 	if p.shuffle {
-		shuffle = "SHUFFLE ON"
+		shuffle = "SHUFFLE (F7) ON"
 	}
 	thirdLine := fmt.Sprintf(
-		"%s | %s | Space Play/Pause | Left/Right Prev/Next | Up/Down List | F1 Help | F8 Toggle",
+		"%s | %s | Space Play/Pause | Left/Right Prev/Next | Up/Down List | F1 Help",
 		auto,
 		shuffle,
 	)
@@ -208,6 +210,38 @@ func (p *player) submitCommand(buffer []rune) string {
 	return command
 }
 
+func autocompleteCommand(buffer []rune) ([]rune, bool) {
+	current := string(buffer)
+	sanitized := sanitizeInput(current)
+	if sanitized == "" || strings.HasSuffix(current, " ") {
+		return buffer, false
+	}
+
+	matches := make([]string, 0)
+	lower := strings.ToLower(sanitized)
+	for _, command := range commandCompletions() {
+		if strings.HasPrefix(command, lower) {
+			matches = append(matches, command)
+		}
+	}
+	if len(matches) == 0 {
+		return buffer, false
+	}
+
+	completed := matches[0]
+	for _, match := range matches[1:] {
+		completed = commonPrefix(completed, match)
+	}
+	if completed == lower {
+		return buffer, false
+	}
+	return []rune(completed), true
+}
+
+func redrawPrompt(buffer []rune) {
+	fmt.Print("\r\x1b[2K", colorText(ansiCyan, "ytmusic: "), string(buffer))
+}
+
 func (p *player) readCommand(input *consoleInput) string {
 	fmt.Print("\n\n\n", colorText(ansiCyan, "ytmusic: "))
 	var buffer []rune
@@ -224,11 +258,19 @@ func (p *player) readCommand(input *consoleInput) string {
 					fmt.Print("\b \b")
 				}
 				continue
+			case keyTab:
+				if completed, ok := autocompleteCommand(buffer); ok {
+					buffer = completed
+					redrawPrompt(buffer)
+				}
+				continue
 			}
 			if len(buffer) == 0 {
 				switch key.virtual {
 				case keyF1:
 					return p.submitCommand([]rune("help"))
+				case keyF7:
+					return p.submitCommand([]rune("__toggle_shuffle"))
 				case keyF8:
 					return p.submitCommand([]rune("__toggle_autorecommend"))
 				case keySpace:
@@ -331,31 +373,31 @@ func showHelp() {
 	fmt.Println()
 	fmt.Println(colorText(ansiYellow, "Commands:"))
 	fmt.Print(`
-  playlist load <url>  Load YouTube playlist
-  playlist save        Save loaded URL playlist to local library
-  playlist show        Show loaded playlist
-  profile load <url>   Find public playlists from a profile
-  profile show         Show profile playlist results
-  profile add <n|all>  Add profile playlist(s) to local library
-  playlist manager     Show local playlist library
-  playlist use <n>     Select a local playlist
-  playlist play <n>    Select and play a local playlist
-  playlist delete <n>  Delete a local playlist
-  search <keyword>     Search YouTube
-  plays <number>       Play a search result
-  queues <number>      Queue a search result
-  thumbs <number>      Show a search result thumbnail
-  playurl <url>        Play a direct media/YouTube URL
-  play <number>        Play a playlist song
-  queue <number>       Add playlist song to queue
-  queue                Show queue
+  playlist load <url>  (plld) Load YouTube playlist
+  playlist save        (plsv) Save loaded URL playlist to local library
+  playlist show        (plsh) Show loaded playlist
+  profile load <url>   (pfld) Find public playlists from a profile
+  profile show         (pfsh) Show profile playlist results
+  profile add <n|all>  (pfad) Add profile playlist(s) to local library
+  playlist manager     (plmg) Show local playlist library
+  playlist use <n>     (plus) Select a local playlist
+  playlist play <n>    (plpy) Select and play a local playlist
+  playlist delete <n>  (pldl) Delete a local playlist
+  search <keyword>     (s) Search YouTube
+  plays <number>       (ps) Play a search result
+  queues <number>      (qs) Queue a search result
+  thumbs <number>      (tbs) Show a search result thumbnail
+  playurl <url>        (pu) Play a direct media/YouTube URL
+  play <number>        (p) Play a playlist song
+  queue <number>       (q) Add playlist song to queue
+  queue                (q) Show queue
   pause | resume       Pause or resume playback
   stop | next | prev   Playback navigation
   shuffle on|off       Toggle shuffle
   autorec on|off       Toggle YouTube recommendations
   status               Show playback status
-  lyrics               Show lyrics
-  thumbnail            Show color thumbnail
+  lyrics               (ly) Show lyrics
+  thumbnail            (tb) Show color thumbnail
   now                  Show thumbnail and lyrics
   cache                Show cache usage
   help                 Show this help
@@ -370,6 +412,7 @@ func showHelp() {
   Up     Show previous playlist items
   Down   Show next playlist items
   F1     Show help
+  F7     Toggle Shuffle
   F8     Toggle Auto Recommendation
 `)
 }
