@@ -149,12 +149,12 @@ func coloredSeekBar(position, width int) string {
 		return ""
 	}
 	if position >= 100 {
-		return ansiDarkGray + "[" + ansiLightGreen + strings.Repeat("\u2593", width) + ansiDarkGray + "]"
+		return ansiDarkGray + "[" + ansiLightGreen + strings.Repeat("\u2588", width) + ansiDarkGray + "]"
 	}
 	filled := position * width / 100
 	return ansiDarkGray + "[" +
-		ansiLightGreen + strings.Repeat("\u2593", filled) +
-		ansiGreen + "\u2588" +
+		ansiGreen + strings.Repeat("\u2593", filled) +
+		ansiLightGreen + "\u2588" +
 		ansiDarkGray + strings.Repeat("\u2591", width-filled-1) +
 		ansiDarkGray + "]"
 }
