@@ -10,6 +10,15 @@ import (
 )
 
 func (p *player) runYtDlp(args ...string) ([]byte, error) {
+	output, err := p.runYtDlpOnce(args...)
+	if err == nil || !isYtDlpLoginRequired(err.Error()) || hasCookiesFromBrowser(args) {
+		return output, err
+	}
+	showFirefoxLoginHint()
+	return p.runYtDlpOnce(withFirefoxCookies(args)...)
+}
+
+func (p *player) runYtDlpOnce(args ...string) ([]byte, error) {
 	exe, err := resolveExecutable(p.cfg.YtDlp)
 	if err != nil {
 		return nil, fmt.Errorf("yt-dlp not found (%s)", p.cfg.YtDlp)
@@ -27,6 +36,38 @@ func (p *player) runYtDlp(args ...string) ([]byte, error) {
 		return nil, err
 	}
 	return output, nil
+}
+
+func isYtDlpLoginRequired(message string) bool {
+	lower := strings.ToLower(message)
+	return strings.Contains(lower, "sign in to confirm") ||
+		strings.Contains(lower, "not a bot") ||
+		strings.Contains(lower, "use --cookies-from-browser") ||
+		strings.Contains(lower, "http error 429") ||
+		strings.Contains(lower, "too many requests")
+}
+
+func hasCookiesFromBrowser(args []string) bool {
+	for _, arg := range args {
+		if arg == "--cookies-from-browser" || strings.HasPrefix(arg, "--cookies-from-browser=") {
+			return true
+		}
+	}
+	return false
+}
+
+func withFirefoxCookies(args []string) []string {
+	copied := make([]string, 0, len(args)+2)
+	copied = append(copied, "--cookies-from-browser", "firefox")
+	copied = append(copied, args...)
+	return copied
+}
+
+func showFirefoxLoginHint() {
+	fmt.Println()
+	fmt.Println(colorText(ansiYellow, "YouTube minta login / verifikasi bot."))
+	fmt.Println("Login YouTube di Firefox, lalu coba lagi. yt-dlp akan pakai cookies Firefox.")
+	fmt.Println("Jika Firefox masih terbuka dan gagal baca cookies, tutup Firefox dulu lalu ulangi.")
 }
 
 func (p *player) listing(target string, extra ...string) (*ytListing, error) {
@@ -208,13 +249,24 @@ func (p *player) streamURL(videoID, sourceURL string) string {
 		fmt.Println("yt-dlp not found:", err)
 		return ""
 	}
-	cmd := exec.Command(exe, "--js-runtimes", p.cfg.JSRuntime, "--no-playlist", "-f", "ba", "-g", target)
+	baseArgs := []string{"--js-runtimes", p.cfg.JSRuntime, "--no-playlist", "-f", "ba", "-g", target}
+	stream, errMessage := p.streamURLWithArgs(exe, baseArgs...)
+	if stream != "" || !isYtDlpLoginRequired(errMessage) {
+		return stream
+	}
+	showFirefoxLoginHint()
+	stream, _ = p.streamURLWithArgs(exe, withFirefoxCookies(baseArgs)...)
+	return stream
+}
+
+func (p *player) streamURLWithArgs(exe string, args ...string) (string, string) {
+	cmd := exec.Command(exe, args...)
 	hideProcessWindow(cmd)
 	var output, stderr bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &output, &stderr
 	if err := cmd.Start(); err != nil {
 		fmt.Println("Failed to start yt-dlp:", err)
-		return ""
+		return "", err.Error()
 	}
 	done := make(chan error, 1)
 	go func() { done <- cmd.Wait() }()
@@ -224,15 +276,16 @@ func (p *player) streamURL(videoID, sourceURL string) string {
 		case err := <-done:
 			stopSpinner()
 			if err != nil {
-				fmt.Println(strings.TrimSpace(stderr.String()))
-				return ""
+				message := strings.TrimSpace(stderr.String())
+				fmt.Println(message)
+				return "", message
 			}
 			for _, line := range strings.Split(output.String(), "\n") {
 				if line = strings.TrimSpace(line); line != "" {
-					return line
+					return line, ""
 				}
 			}
-			return ""
+			return "", ""
 		default:
 			sleep100ms()
 		}

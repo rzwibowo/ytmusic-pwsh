@@ -23,12 +23,13 @@ const (
 )
 
 const (
-	ansiReset    = "\x1b[0m"
-	ansiRed      = "\x1b[31m"
-	ansiGreen    = "\x1b[32m"
-	ansiYellow   = "\x1b[33m"
-	ansiCyan     = "\x1b[36m"
-	ansiDarkGray = "\x1b[90m"
+	ansiReset      = "\x1b[0m"
+	ansiRed        = "\x1b[31m"
+	ansiGreen      = "\x1b[32m"
+	ansiYellow     = "\x1b[33m"
+	ansiCyan       = "\x1b[36m"
+	ansiDarkGray   = "\x1b[90m"
+	ansiLightGreen = "\x1b[92m"
 )
 
 type keyPress struct {
@@ -137,24 +138,25 @@ func seekBar(position, width int) string {
 		return ""
 	}
 	if position >= 100 {
-		return strings.Repeat("=", width)
+		return strings.Repeat("\u2593", width)
 	}
 	filled := position * width / 100
-	return strings.Repeat("=", filled) + "o" + strings.Repeat("-", width-filled-1)
+	return strings.Repeat("\u2593", filled) + "\u2588" + strings.Repeat("\u2591", width-filled-1)
 }
 
 func coloredSeekBar(position, width int) string {
-	bar := seekBar(position, width)
+	if width <= 0 {
+		return ""
+	}
 	if position >= 100 {
-		return ansiDarkGray + "[" + ansiGreen + bar + ansiDarkGray + "]"
+		return ansiDarkGray + "[" + ansiLightGreen + strings.Repeat("\u2593", width) + ansiDarkGray + "]"
 	}
-	marker := strings.IndexRune(bar, 'o')
-	if marker < 0 {
-		return ansiDarkGray + "[" + bar + "]"
-	}
+	filled := position * width / 100
 	return ansiDarkGray + "[" +
-		ansiGreen + bar[:marker+1] +
-		ansiDarkGray + bar[marker+1:] + "]"
+		ansiLightGreen + strings.Repeat("\u2593", filled) +
+		ansiGreen + "\u2588" +
+		ansiDarkGray + strings.Repeat("\u2591", width-filled-1) +
+		ansiDarkGray + "]"
 }
 
 func truncateLine(line string, width int) string {

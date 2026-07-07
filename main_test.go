@@ -126,10 +126,10 @@ func TestStatusLines(t *testing.T) {
 	if lines[0] != "[> PLAYING] A Song - An Artist" {
 		t.Fatalf("title line = %q", lines[0])
 	}
-	if lines[1] != "[=======================o----------------------] 1:05 / 2:10" {
+	if lines[1] != "[▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓█░░░░░░░░░░░░░░░░░░░░░░] 1:05 / 2:10" {
 		t.Fatalf("seek line = %q", lines[1])
 	}
-	if lines[2] != "AUTO REC ON | SHUFFLE ON | Space Play/Pause | Left/Right ..." {
+	if lines[2] != "AUTO REC (F8) ON | SHUFFLE (F7) ON | Space Play/Pause | L..." {
 		t.Fatalf("shortcut line = %q", lines[2])
 	}
 }
