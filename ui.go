@@ -155,23 +155,7 @@ func coloredSeekBar(position, width int) string {
 	return ansiDarkGray + "[" +
 		ansiGreen + strings.Repeat("\u2588", filled) +
 		ansiLightGreen + "\u2588" +
-		ansiDarkGray + func() string {
-		remainingWidth := width - filled - 1
-		if remainingWidth <= 0 {
-			return ""
-		}
-		var builder strings.Builder
-		if remainingWidth >= 1 {
-			builder.WriteRune('\u2593') // ▓
-		}
-		if remainingWidth >= 2 {
-			builder.WriteRune('\u2592') // ▒
-		}
-		if remainingWidth > 2 {
-			builder.WriteString(strings.Repeat("\u2591", remainingWidth-2)) // ░░░░
-		}
-		return builder.String()
-	}() +
+		ansiDarkGray + strings.Repeat("\u2591", maxInt(0, width-filled-1)) +
 		ansiDarkGray + "]"
 }
 
