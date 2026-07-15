@@ -1,3 +1,4 @@
 .gocache/
 ytplayer.exe
 config.json
+data/state.json
