@@ -22,7 +22,13 @@ var (
 	procGetNumberOfConsoleInputEvents = kernel32.NewProc("GetNumberOfConsoleInputEvents")
 	procReadConsoleInputW             = kernel32.NewProc("ReadConsoleInputW")
 	procGetConsoleScreenBufferInfo    = kernel32.NewProc("GetConsoleScreenBufferInfo")
+	procSetConsoleTitleW              = kernel32.NewProc("SetConsoleTitleW")
 )
+
+func setConsoleTitle(title string) {
+	ptr, _ := syscall.UTF16PtrFromString(title)
+	_, _, _ = procSetConsoleTitleW.Call(uintptr(unsafe.Pointer(ptr)))
+}
 
 type inputRecord struct {
 	EventType uint16

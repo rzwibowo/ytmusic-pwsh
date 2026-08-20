@@ -78,7 +78,8 @@ func main() {
 	defer input.close()
 	p.console = input
 
-	fmt.Printf("\n========================================\n YouTube Music CLI (Go)\n========================================\nVLC HTTP port: %d\n", cfg.HTTPPort)
+	setConsoleTitle("ytplayer go")
+	fmt.Printf("\n========================================\n ytplayer go\n========================================\nVLC HTTP port: %d\n", cfg.HTTPPort)
 	showHelp()
 	for {
 		command := p.readCommand(input)
@@ -195,6 +196,7 @@ func (p *player) execute(command string) bool {
 	case lower == "stop":
 		p.autoAdvanceArmed = false
 		_ = p.vlcRequest("pl_stop", nil)
+		setConsoleTitle("⏹️ ytplayer go")
 		fmt.Println("Stopped")
 	case lower == "next":
 		p.nextSong()
@@ -296,7 +298,9 @@ func (p *player) pause() {
 		return
 	}
 	_ = p.vlcRequest("pl_pause", nil)
-	fmt.Println("Paused:", p.currentTitle())
+	title := p.currentTitle()
+	setConsoleTitle("⏸️ " + title + " — ytplayer go")
+	fmt.Println("Paused:", title)
 }
 
 func (p *player) resume() {
@@ -306,7 +310,9 @@ func (p *player) resume() {
 		return
 	}
 	_ = p.vlcRequest("pl_pause", nil)
-	fmt.Println("Playing:", p.currentTitle())
+	title := p.currentTitle()
+	setConsoleTitle("▶️ " + title + " — ytplayer go")
+	fmt.Println("Playing:", title)
 }
 
 func (p *player) showStatus() {

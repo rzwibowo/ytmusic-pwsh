@@ -18,4 +18,5 @@ func (c *consoleInput) readKey(_ time.Duration) (keyPress, bool) {
 	r, _, err := c.reader.ReadRune()
 	return keyPress{char: r}, err == nil
 }
-func terminalWidth() int { return 120 }
+func terminalWidth() int    { return 120 }
+func setConsoleTitle(_ string) {}

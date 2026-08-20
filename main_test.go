@@ -166,3 +166,23 @@ func TestSafeID(t *testing.T) {
 		t.Fatalf("safeID() = %q", got)
 	}
 }
+
+func TestIsYtDlpLoginRequired(t *testing.T) {
+	cases := []struct {
+		message string
+		want    bool
+	}{
+		{"ERROR: Sign in to confirm you're not a bot.", true},
+		{"ERROR: This video is not available", false},
+		{"ERROR: [youtube] abc: HTTP Error 403: Forbidden", true},
+		{"ERROR: [youtube] abc: HTTP Error 429: Too Many Requests", true},
+		{"Too many requests, try again later", true},
+		{"Use --cookies-from-browser to pass cookies", true},
+		{"ERROR: Video unavailable", false},
+	}
+	for _, tc := range cases {
+		if got := isYtDlpLoginRequired(tc.message); got != tc.want {
+			t.Errorf("isYtDlpLoginRequired(%q) = %v, want %v", tc.message, got, tc.want)
+		}
+	}
+}

@@ -10,6 +10,9 @@ import (
 )
 
 func (p *player) runYtDlp(args ...string) ([]byte, error) {
+	if hasCookiesFile() && !hasCookiesFileArg(args) {
+		args = withCookiesFile(args)
+	}
 	output, err := p.runYtDlpOnce(args...)
 	if err == nil || !isYtDlpLoginRequired(err.Error()) || hasCookiesFromBrowser(args) {
 		return output, err
@@ -43,6 +46,7 @@ func isYtDlpLoginRequired(message string) bool {
 	return strings.Contains(lower, "sign in to confirm") ||
 		strings.Contains(lower, "not a bot") ||
 		strings.Contains(lower, "use --cookies-from-browser") ||
+		strings.Contains(lower, "http error 403") ||
 		strings.Contains(lower, "http error 429") ||
 		strings.Contains(lower, "too many requests")
 }
@@ -70,8 +74,30 @@ func showFirefoxLoginHint() {
 	fmt.Println("Jika Firefox masih terbuka dan gagal baca cookies, tutup Firefox dulu lalu ulangi.")
 }
 
+const cookiesFile = "cookies.txt"
+
+func hasCookiesFile() bool {
+	return fileExists(cookiesFile)
+}
+
+func hasCookiesFileArg(args []string) bool {
+	for _, arg := range args {
+		if arg == "--cookies" || strings.HasPrefix(arg, "--cookies=") {
+			return true
+		}
+	}
+	return false
+}
+
+func withCookiesFile(args []string) []string {
+	copied := make([]string, 0, len(args)+2)
+	copied = append(copied, "--cookies", cookiesFile)
+	copied = append(copied, args...)
+	return copied
+}
+
 func (p *player) listing(target string, extra ...string) (*ytListing, error) {
-	args := []string{"--js-runtimes", p.cfg.JSRuntime, "--flat-playlist"}
+	args := []string{"--js-runtimes", p.cfg.JSRuntime, "--extractor-args", "youtube:player_client=web_embedded,android", "--flat-playlist"}
 	args = append(args, extra...)
 	args = append(args, "--dump-single-json", target)
 	output, err := p.runYtDlp(args...)
@@ -92,6 +118,7 @@ func (p *player) videoMetadata(videoID, sourceURL string) (*ytEntry, error) {
 	}
 	output, err := p.runYtDlp(
 		"--js-runtimes", p.cfg.JSRuntime,
+		"--extractor-args", "youtube:player_client=web_embedded,android",
 		"--no-playlist",
 		"--skip-download",
 		"--dump-single-json",
@@ -249,7 +276,10 @@ func (p *player) streamURL(videoID, sourceURL string) string {
 		fmt.Println("yt-dlp not found:", err)
 		return ""
 	}
-	baseArgs := []string{"--js-runtimes", p.cfg.JSRuntime, "--no-playlist", "-f", "ba", "-g", target}
+	baseArgs := []string{"--js-runtimes", p.cfg.JSRuntime, "--extractor-args", "youtube:player_client=web_embedded,android", "--no-playlist", "-f", "ba/b", "-g", target}
+	if hasCookiesFile() && !hasCookiesFileArg(baseArgs) {
+		baseArgs = withCookiesFile(baseArgs)
+	}
 	stream, errMessage := p.streamURLWithArgs(exe, baseArgs...)
 	if stream != "" || !isYtDlpLoginRequired(errMessage) {
 		return stream
@@ -302,7 +332,11 @@ func (p *player) backgroundCache(videoID string) {
 	}
 	target := "https://www.youtube.com/watch?v=" + url.QueryEscape(videoID)
 	output := p.cfg.CacheDir + stringPathSeparator() + videoID + ".%(ext)s"
-	cmd := exec.Command(exe, "--js-runtimes", p.cfg.JSRuntime, "-f", "ba", "-o", output, target)
+	cacheArgs := []string{"--js-runtimes", p.cfg.JSRuntime, "--extractor-args", "youtube:player_client=web_embedded,android", "-f", "ba/b", "-o", output, target}
+	if hasCookiesFile() {
+		cacheArgs = withCookiesFile(cacheArgs)
+	}
+	cmd := exec.Command(exe, cacheArgs...)
 	hideProcessWindow(cmd)
 	_ = cmd.Start()
 }

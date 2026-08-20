@@ -20,7 +20,9 @@ func (p *player) playSong(index int) {
 	p.currentSong = &p.playlist[index]
 	p.currentIndex = index
 	p.autoAdvanceArmed = false
-	fmt.Printf("\nNow Playing:\n%s\n", song.nowPlayingTitle())
+	nowTitle := song.nowPlayingTitle()
+	setConsoleTitle("▶️ " + nowTitle + " — ytplayer go")
+	fmt.Printf("\nNow Playing:\n%s\n", nowTitle)
 	cached := p.cacheFile(song.ID)
 	if cached != "" {
 		now := time.Now()
@@ -60,10 +62,14 @@ func (p *player) togglePlayback() {
 	switch status.State {
 	case "playing":
 		_ = p.vlcRequest("pl_pause", nil)
-		fmt.Println("Paused:", p.currentTitle())
+		title := p.currentTitle()
+		setConsoleTitle("⏸️ " + title + " — ytplayer go")
+		fmt.Println("Paused:", title)
 	case "paused":
 		_ = p.vlcRequest("pl_pause", nil)
-		fmt.Println("Playing:", p.currentTitle())
+		title := p.currentTitle()
+		setConsoleTitle("▶️ " + title + " — ytplayer go")
+		fmt.Println("Playing:", title)
 	default:
 		if p.currentIndex >= 0 {
 			p.playSong(p.currentIndex)

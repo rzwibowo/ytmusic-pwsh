@@ -85,22 +85,22 @@ func formatPlaybackTime(seconds int) string {
 }
 
 func (p *player) statusLines(status *vlcStatus, width int) [3]string {
-	state, icon, position, elapsed, total := "VLC OFFLINE", "x", 0, 0, 0
+	state, icon, position, elapsed, total := "VLC OFFLINE", "⏹️", 0, 0, 0
 	if status != nil {
 		state = strings.ToUpper(status.State)
 		position = clamp(int(status.Position*100+0.5), 0, 100)
 		elapsed, total = maxInt(status.Time, 0), maxInt(status.Length, 0)
 		switch state {
 		case "PLAYING":
-			icon = ">"
+			icon = "▶️"
 		case "PAUSED":
-			icon = "||"
+			icon = "⏸️"
 		case "STOPPED":
-			icon = "[]"
+			icon = "⏹️"
 		}
 	}
 	title := p.currentTitle()
-	firstLine := fmt.Sprintf("[%s %s] %s", icon, state, title)
+	firstLine := fmt.Sprintf("%s %s | %s", icon, state, title)
 
 	auto := "AUTO REC (F8) OFF"
 	if p.autoRecommend {
@@ -241,11 +241,11 @@ func autocompleteCommand(buffer []rune) ([]rune, bool) {
 }
 
 func redrawPrompt(buffer []rune) {
-	fmt.Print("\r\x1b[2K", colorText(ansiCyan, "ytmusic: "), string(buffer))
+	fmt.Print("\r\x1b[2K", colorText(ansiCyan, "ytplayer: "), string(buffer))
 }
 
 func (p *player) readCommand(input *consoleInput) string {
-	fmt.Print("\n\n\n", colorText(ansiCyan, "ytmusic: "))
+	fmt.Print("\n\n\n", colorText(ansiCyan, "ytplayer: "))
 	var buffer []rune
 	lastStatus := time.Time{}
 	refresh := 750 * time.Millisecond
@@ -304,7 +304,7 @@ func (p *player) readCommand(input *consoleInput) string {
 				p.writeStatus(status)
 			}
 			if p.autoNext(status) {
-				fmt.Print(colorText(ansiCyan, "ytmusic: "), string(buffer))
+				fmt.Print(colorText(ansiCyan, "ytplayer: "), string(buffer))
 			}
 		}
 	}
