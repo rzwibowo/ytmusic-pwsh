@@ -125,6 +125,10 @@ func (p *player) execute(command string) bool {
 		fmt.Println("Shuffle", onOff(p.shuffle))
 	case lower == "__toggle_playback":
 		p.togglePlayback()
+	case lower == "__seek_forward":
+		p.seek(10)
+	case lower == "__seek_backward":
+		p.seek(-10)
 	case strings.HasPrefix(lower, "playlist load "):
 		p.loadYouTubePlaylist(argumentAfter(command, "playlist load "))
 	case lower == "playlist save":

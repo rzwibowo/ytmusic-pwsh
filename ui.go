@@ -35,6 +35,7 @@ const (
 type keyPress struct {
 	virtual uint16
 	char    rune
+	ctrl    bool
 }
 
 func colorText(color, text string) string {
@@ -278,8 +279,14 @@ func (p *player) readCommand(input *consoleInput) string {
 				case keySpace:
 					return p.submitCommand([]rune("__toggle_playback"))
 				case keyLeft:
+					if key.ctrl {
+						return p.submitCommand([]rune("__seek_backward"))
+					}
 					return p.submitCommand([]rune("prev"))
 				case keyRight:
+					if key.ctrl {
+						return p.submitCommand([]rune("__seek_forward"))
+					}
 					return p.submitCommand([]rune("next"))
 				case keyUp:
 					return p.submitCommand([]rune("__playlist_up"))
@@ -409,8 +416,8 @@ func showHelp() {
 	fmt.Println(colorText(ansiYellow, "Keys:"))
 	fmt.Print(`
   Space  Play/Pause
-  Left   Previous song
-  Right  Next song
+  Left   Previous song (Ctrl+Left: Rewind 10s)
+  Right  Next song (Ctrl+Right: Forward 10s)
   Up     Show previous playlist items
   Down   Show next playlist items
   F1     Show help

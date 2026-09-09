@@ -100,7 +100,8 @@ func (c *consoleInput) readKey(timeout time.Duration) (keyPress, bool) {
 		if ok == 0 || read == 0 || record.EventType != keyEventType || record.KeyDown == 0 {
 			continue
 		}
-		return keyPress{virtual: record.Virtual, char: rune(record.Char)}, true
+		ctrl := (record.Control & (0x0008 | 0x0004)) != 0
+		return keyPress{virtual: record.Virtual, char: rune(record.Char), ctrl: ctrl}, true
 	}
 	return keyPress{}, false
 }

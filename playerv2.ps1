@@ -1868,8 +1868,8 @@ function Show-Help {
     Write-Host ""
     Write-Host "Keys:" -ForegroundColor Yellow
     Write-Host "  Space  Play/Pause"
-    Write-Host "  Left   Previous song"
-    Write-Host "  Right  Next song"
+    Write-Host "  Left   Previous song (Ctrl+Left: Rewind 10s)"
+    Write-Host "  Right  Next song (Ctrl+Right: Forward 10s)"
     Write-Host "  Up     Show previous playlist items"
     Write-Host "  Down   Show next playlist items"
     Write-Host "  F1     Show help"
@@ -2309,11 +2309,17 @@ function Read-PlayerCommand {
 
                 if ($key.Key -eq [ConsoleKey]::LeftArrow) {
                     Write-Host ""
+                    if ($key.Modifiers -band [ConsoleModifiers]::Control) {
+                        return "__seek_backward"
+                    }
                     return "prev"
                 }
 
                 if ($key.Key -eq [ConsoleKey]::RightArrow) {
                     Write-Host ""
+                    if ($key.Modifiers -band [ConsoleModifiers]::Control) {
+                        return "__seek_forward"
+                    }
                     return "next"
                 }
 
@@ -2586,6 +2592,14 @@ try {
                 if ($script:AutoRecommend) { "ON" } else { "OFF" }
 
             Write-Host "YouTube Auto Recommendation $state"
+        }
+
+        '^__seek_forward$' {
+            Invoke-VLCCommand "seek&val=%2B10" | Out-Null
+        }
+
+        '^__seek_backward$' {
+            Invoke-VLCCommand "seek&val=-10" | Out-Null
         }
 
         '^__toggle_playback$' {

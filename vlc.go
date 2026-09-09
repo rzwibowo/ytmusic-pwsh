@@ -40,6 +40,14 @@ func (p *player) vlcRequest(command string, target any) error {
 	return nil
 }
 
+func (p *player) seek(seconds int) {
+	val := fmt.Sprintf("%%2B%d", seconds)
+	if seconds < 0 {
+		val = fmt.Sprintf("%d", seconds)
+	}
+	_ = p.vlcRequest("seek&val="+val, nil)
+}
+
 func (p *player) getVLCStatus() (*vlcStatus, error) {
 	var status vlcStatus
 	if err := p.vlcRequest("", &status); err != nil {
