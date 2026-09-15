@@ -11,6 +11,7 @@ dan menghasilkan satu executable Windows.
 - Local playlist library dengan data yang kompatibel dengan versi PowerShell
 - Lirik LRCLIB dan thumbnail true-color di terminal
 - Hotkey Space, panah, F1, dan F8
+- Global media keys (Play/Pause, Stop, Next/Prev Track) via Windows RegisterHotKey
 
 ## Persyaratan
 

@@ -29,6 +29,7 @@ type player struct {
 	library          []PlaylistEntry
 	vlcProcess       *exec.Cmd
 	console          *consoleInput
+	mediaCommands    chan string
 	autoAdvanceArmed bool
 }
 
@@ -77,9 +78,12 @@ func main() {
 	}
 	defer input.close()
 	p.console = input
+	p.mediaCommands = make(chan string, 4)
+	go listenMediaKeys(p.mediaCommands)
 
 	setConsoleTitle("ytplayer go")
 	fmt.Printf("\n========================================\n ytplayer go\n========================================\nVLC HTTP port: %d\n", cfg.HTTPPort)
+	fmt.Println("Media keys: global Play/Pause, Stop, Next, Prev active")
 	showHelp()
 	for {
 		command := p.readCommand(input)

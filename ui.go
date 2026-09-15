@@ -251,6 +251,11 @@ func (p *player) readCommand(input *consoleInput) string {
 	lastStatus := time.Time{}
 	refresh := 750 * time.Millisecond
 	for {
+		select {
+		case command := <-p.mediaCommands:
+			return p.submitCommand([]rune(command))
+		default:
+		}
 		if key, ok := input.readKey(100 * time.Millisecond); ok {
 			switch key.virtual {
 			case keyEnter:
@@ -423,5 +428,8 @@ func showHelp() {
   F1     Show help
   F7     Toggle Shuffle
   F8     Toggle Auto Recommendation
+
+System media keys (work even when window is not focused):
+  Play/Pause, Stop, Next Track, Previous Track
 `)
 }
