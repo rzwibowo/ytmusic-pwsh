@@ -90,12 +90,23 @@ func main() {
 		if command == "" {
 			continue
 		}
+		if !strings.HasPrefix(command, "__") {
+			clearScreen()
+		}
 		if !p.execute(command) {
 			break
 		}
 		p.cleanCache()
 	}
 	fmt.Println("\nBye...")
+}
+
+func clearScreen() {
+	cmd := exec.Command("cmd", "/c", "cls")
+	cmd.Stdout = os.Stdout
+	_ = cmd.Run()
+	// Fallback ANSI just in case
+	fmt.Print("\x1b[2J\x1b[3J\x1b[H")
 }
 
 func ensureDirectories(cfg Config) error {
@@ -172,6 +183,18 @@ func (p *player) execute(command string) bool {
 	case strings.HasPrefix(lower, "playlist delete "):
 		if index, ok := oneBasedIndex(argumentAfter(command, "playlist delete ")); ok {
 			p.deleteLocalPlaylist(index)
+		}
+	case strings.HasPrefix(lower, "searchplay "):
+		p.searchResults = p.searchYouTube(argumentAfter(command, "searchplay "))
+		showSongs(p.searchResults)
+		if len(p.searchResults) > 0 {
+			p.playSearchResult("1")
+		}
+	case strings.HasPrefix(lower, "searchqueue "):
+		p.searchResults = p.searchYouTube(argumentAfter(command, "searchqueue "))
+		showSongs(p.searchResults)
+		if len(p.searchResults) > 0 {
+			p.queueSearchResult("1")
 		}
 	case strings.HasPrefix(lower, "search "):
 		p.searchResults = p.searchYouTube(argumentAfter(command, "search "))
@@ -361,6 +384,8 @@ func commandAliases() []commandAlias {
 		{"plpy", "playlist play"},
 		{"pldl", "playlist delete"},
 		{"s", "search"},
+		{"sip", "searchplay"},
+		{"siq", "searchqueue"},
 		{"ps", "plays"},
 		{"qs", "queues"},
 		{"tbs", "thumbs"},
@@ -385,6 +410,8 @@ func baseCommands() []string {
 		"playlist play",
 		"playlist delete",
 		"search",
+		"searchplay",
+		"searchqueue",
 		"plays",
 		"queues",
 		"thumbs",

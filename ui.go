@@ -398,6 +398,8 @@ func showHelp() {
   playlist play <n>    (plpy) Select and play a local playlist
   playlist delete <n>  (pldl) Delete a local playlist
   search <keyword>     (s) Search YouTube
+  searchplay <keyword> (sip) Search and immediately play first result
+  searchqueue <kw>     (siq) Search and immediately queue first result
   plays <number>       (ps) Play a search result
   queues <number>      (qs) Queue a search result
   thumbs <number>      (tbs) Show a search result thumbnail
