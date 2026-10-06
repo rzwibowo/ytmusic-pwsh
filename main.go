@@ -146,6 +146,7 @@ func (p *player) execute(command string) bool {
 		fmt.Println("YouTube Auto Recommendation", onOff(p.autoRecommend))
 	case lower == "__toggle_lyrics":
 		p.showSyncedLyrics = !p.showSyncedLyrics
+		p.saveState()
 		if p.showSyncedLyrics {
 			fmt.Println("Interactive Lyrics (F6): ON")
 			if len(p.currentLyrics) == 0 && p.currentSong != nil {
@@ -156,6 +157,7 @@ func (p *player) execute(command string) bool {
 		}
 	case lower == "__toggle_autothumbnail":
 		p.autoThumbnail = !p.autoThumbnail
+		p.saveState()
 		if p.autoThumbnail {
 			fmt.Println("Auto Thumbnail (F9): ON")
 		} else {

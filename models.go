@@ -26,9 +26,11 @@ type PlaylistEntry struct {
 }
 
 type savedState struct {
-	Shuffle       bool `json:"Shuffle"`
-	AutoRecommend bool `json:"AutoRecommend"`
-	CurrentIndex  int  `json:"CurrentIndex"`
+	Shuffle          bool `json:"Shuffle"`
+	AutoRecommend    bool `json:"AutoRecommend"`
+	ShowSyncedLyrics bool `json:"ShowSyncedLyrics"`
+	AutoThumbnail    bool `json:"AutoThumbnail"`
+	CurrentIndex     int  `json:"CurrentIndex"`
 }
 
 type vlcStatus struct {

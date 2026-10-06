@@ -108,10 +108,10 @@ func (p *player) statusLines(status *vlcStatus, width int) []string {
 
 	togglesLine := fmt.Sprintf(
 		"F6 Lyrics: %s | F7 Shuffle: %s | F8 AutoRec: %s | F9 Thumbnail: %s",
-		onOffCircle(p.showSyncedLyrics),
-		onOffCircle(p.shuffle),
-		onOffCircle(p.autoRecommend),
-		onOffCircle(p.autoThumbnail),
+		onOffPlaceholder(p.showSyncedLyrics),
+		onOffPlaceholder(p.shuffle),
+		onOffPlaceholder(p.autoRecommend),
+		onOffPlaceholder(p.autoThumbnail),
 	)
 	keysLine := "Space Play/Pause | Left/Right Skip | F5/Up/Down List | F1 Help"
 	
@@ -155,16 +155,20 @@ func (p *player) statusLines(status *vlcStatus, width int) []string {
 		lines = append(lines, truncateLine("   "+nextText, width))
 	}
 	
-	lines = append(lines, truncateLine(togglesLine, width))
+	togglesLine = truncateLine(togglesLine, width)
+	togglesLine = strings.ReplaceAll(togglesLine, "{1}", ansiGreen+"ON "+ansiCyan)
+	togglesLine = strings.ReplaceAll(togglesLine, "{0}", ansiDarkGray+"OFF"+ansiCyan)
+	
+	lines = append(lines, togglesLine)
 	lines = append(lines, truncateLine(keysLine, width))
 	return lines
 }
 
-func onOffCircle(v bool) string {
+func onOffPlaceholder(v bool) string {
 	if v {
-		return "🟢"
+		return "{1}"
 	}
-	return "⚫"
+	return "{0}"
 }
 
 func playbackProgressLine(position, elapsed, total, width int, colored bool) string {

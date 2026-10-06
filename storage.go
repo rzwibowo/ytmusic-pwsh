@@ -34,6 +34,8 @@ func (p *player) restore() {
 	if err := readJSON(filepath.Join(p.cfg.DataDir, "state.json"), &state); err == nil {
 		p.shuffle = state.Shuffle
 		p.autoRecommend = state.AutoRecommend
+		p.showSyncedLyrics = state.ShowSyncedLyrics
+		p.autoThumbnail = state.AutoThumbnail
 	}
 	p.restoreLibrary()
 }
@@ -45,7 +47,13 @@ func (p *player) savePlaylist() {
 }
 
 func (p *player) saveState() {
-	state := savedState{Shuffle: p.shuffle, AutoRecommend: p.autoRecommend, CurrentIndex: p.currentIndex}
+	state := savedState{
+		Shuffle:          p.shuffle,
+		AutoRecommend:    p.autoRecommend,
+		ShowSyncedLyrics: p.showSyncedLyrics,
+		AutoThumbnail:    p.autoThumbnail,
+		CurrentIndex:     p.currentIndex,
+	}
 	if err := writeJSON(filepath.Join(p.cfg.DataDir, "state.json"), state); err != nil {
 		fmt.Println("Could not save player state:", err)
 	}
