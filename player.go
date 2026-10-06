@@ -142,7 +142,8 @@ func (p *player) autoNext(status *vlcStatus) bool {
 	}
 	if status.State == "stopped" && p.autoAdvanceArmed {
 		p.autoAdvanceArmed = false
-		fmt.Println("\nSong finished. Playing next...")
+		clearScreen()
+		fmt.Println("Song finished. Playing next...")
 		p.nextSong()
 		return true
 	}
