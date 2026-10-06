@@ -20,6 +20,10 @@ func (p *player) playSong(index int) {
 	p.currentSong = &p.playlist[index]
 	p.currentIndex = index
 	p.autoAdvanceArmed = false
+	p.currentLyrics = nil
+	if p.showSyncedLyrics {
+		go p.fetchLyricsSilent(&song)
+	}
 	nowTitle := song.nowPlayingTitle()
 	setConsoleTitle("▶️ " + nowTitle + " — ytplayer go")
 	fmt.Printf("\nNow Playing:\n%s\n", nowTitle)
@@ -145,6 +149,9 @@ func (p *player) autoNext(status *vlcStatus) bool {
 		clearScreen()
 		fmt.Println("Song finished. Playing next...")
 		p.nextSong()
+		if p.autoThumbnail {
+			p.showThumbnail()
+		}
 		return true
 	}
 	return false

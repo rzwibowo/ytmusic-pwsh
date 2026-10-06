@@ -18,8 +18,11 @@ const (
 	keyDown      = 0x28
 	keyTab       = 0x09
 	keyF1        = 0x70
+	keyF5        = 0x74
+	keyF6        = 0x75
 	keyF7        = 0x76
 	keyF8        = 0x77
+	keyF9        = 0x78
 )
 
 const (
@@ -85,7 +88,7 @@ func formatPlaybackTime(seconds int) string {
 	return fmt.Sprintf("%d:%02d", minutes, secs)
 }
 
-func (p *player) statusLines(status *vlcStatus, width int) [3]string {
+func (p *player) statusLines(status *vlcStatus, width int) []string {
 	state, icon, position, elapsed, total := "VLC OFFLINE", "⏹️", 0, 0, 0
 	if status != nil {
 		state = strings.ToUpper(status.State)
@@ -103,24 +106,65 @@ func (p *player) statusLines(status *vlcStatus, width int) [3]string {
 	title := p.currentTitle()
 	firstLine := fmt.Sprintf("%s %s | %s", icon, state, title)
 
-	auto := "AUTO REC (F8) OFF"
-	if p.autoRecommend {
-		auto = "AUTO REC (F8) ON"
-	}
-	shuffle := "SHUFFLE (F7) OFF"
-	if p.shuffle {
-		shuffle = "SHUFFLE (F7) ON"
-	}
-	thirdLine := fmt.Sprintf(
-		"%s | %s | Space Play/Pause | Left/Right Prev/Next | Up/Down List | F1 Help",
-		auto,
-		shuffle,
+	togglesLine := fmt.Sprintf(
+		"F6 Lyrics: %s | F7 Shuffle: %s | F8 AutoRec: %s | F9 Thumbnail: %s",
+		onOffCircle(p.showSyncedLyrics),
+		onOffCircle(p.shuffle),
+		onOffCircle(p.autoRecommend),
+		onOffCircle(p.autoThumbnail),
 	)
-	return [3]string{
+	keysLine := "Space Play/Pause | Left/Right Skip | F5/Up/Down List | F1 Help"
+	
+	lines := []string{
 		truncateLine(firstLine, width),
 		playbackProgressLine(position, elapsed, total, width, false),
-		truncateLine(thirdLine, width),
 	}
+	
+	if p.showSyncedLyrics {
+		prevText := ""
+		currText := "No synced lyrics available"
+		nextText := ""
+		
+		if len(p.currentLyrics) > 0 && status != nil {
+			currIdx := -1
+			for i, line := range p.currentLyrics {
+				if elapsed >= line.TimeSeconds {
+					currIdx = i
+				} else {
+					break
+				}
+			}
+			
+			currText = "..."
+			if currIdx >= 0 {
+				currText = p.currentLyrics[currIdx].Text
+				if currIdx > 0 {
+					prevText = p.currentLyrics[currIdx-1].Text
+				}
+			}
+			if currIdx+1 < len(p.currentLyrics) {
+				nextText = p.currentLyrics[currIdx+1].Text
+			}
+			if currText == "" {
+				currText = "..."
+			}
+		}
+		
+		lines = append(lines, truncateLine("   "+prevText, width))
+		lines = append(lines, truncateLine(" 🎵 "+currText, width))
+		lines = append(lines, truncateLine("   "+nextText, width))
+	}
+	
+	lines = append(lines, truncateLine(togglesLine, width))
+	lines = append(lines, truncateLine(keysLine, width))
+	return lines
+}
+
+func onOffCircle(v bool) string {
+	if v {
+		return "🟢"
+	}
+	return "⚫"
 }
 
 func playbackProgressLine(position, elapsed, total, width int, colored bool) string {
@@ -190,12 +234,30 @@ func (p *player) writeStatus(status *vlcStatus) {
 			stateColor = ansiDarkGray
 		}
 	}
-	fmt.Print("\x1b7\x1b[3A\r")
-	writeStatusLine(stateColor, lines[0])
-	fmt.Print("\n")
-	writeStatusLine("", playbackProgressLine(position, elapsed, total, width, true))
-	fmt.Print("\n")
-	writeStatusLine(ansiCyan, lines[2])
+	
+	linesCount := len(lines)
+	if linesCount > 0 {
+		fmt.Printf("\x1b7\x1b[%dA\r", linesCount)
+	}
+	
+	for i, line := range lines {
+		if i > 0 {
+			fmt.Print("\n")
+		}
+		if i == 0 {
+			writeStatusLine(stateColor, line)
+		} else if i == 1 {
+			writeStatusLine("", playbackProgressLine(position, elapsed, total, width, true))
+		} else if p.showSyncedLyrics && i >= 2 && i <= 4 {
+			if i == 3 {
+				writeStatusLine(ansiYellow, line)
+			} else {
+				writeStatusLine(ansiDarkGray, line)
+			}
+		} else {
+			writeStatusLine(ansiCyan, line)
+		}
+	}
 	fmt.Print("\x1b8")
 }
 
@@ -203,13 +265,25 @@ func writeStatusLine(color, line string) {
 	fmt.Printf("\x1b[2K\r%s%s%s", color, line, ansiReset)
 }
 
-func clearInteractiveBlock() {
-	fmt.Print("\r\x1b[2K\x1b[1A\x1b[2K\x1b[1A\x1b[2K\x1b[1A\x1b[2K\r")
+func (p *player) expectedStatusLinesCount() int {
+	if p.showSyncedLyrics {
+		return 7
+	}
+	return 4
+}
+
+func (p *player) clearInteractiveBlock() {
+	lines := p.expectedStatusLinesCount()
+	fmt.Print("\r\x1b[2K")
+	for i := 0; i < lines; i++ {
+		fmt.Print("\x1b[1A\x1b[2K")
+	}
+	fmt.Print("\r")
 }
 
 func (p *player) submitCommand(buffer []rune) string {
 	command := sanitizeInput(string(buffer))
-	clearInteractiveBlock()
+	p.clearInteractiveBlock()
 	return command
 }
 
@@ -246,7 +320,8 @@ func redrawPrompt(buffer []rune) {
 }
 
 func (p *player) readCommand(input *consoleInput) string {
-	fmt.Print("\n\n\n", colorText(ansiCyan, "ytplayer: "))
+	lines := p.expectedStatusLinesCount()
+	fmt.Print(strings.Repeat("\n", lines), colorText(ansiCyan, "ytplayer: "))
 	var buffer []rune
 	lastStatus := time.Time{}
 	refresh := 750 * time.Millisecond
@@ -277,10 +352,16 @@ func (p *player) readCommand(input *consoleInput) string {
 				switch key.virtual {
 				case keyF1:
 					return p.submitCommand([]rune("help"))
+				case keyF5:
+					return p.submitCommand([]rune("playlist show"))
+				case keyF6:
+					return p.submitCommand([]rune("__toggle_lyrics"))
 				case keyF7:
 					return p.submitCommand([]rune("__toggle_shuffle"))
 				case keyF8:
 					return p.submitCommand([]rune("__toggle_autorecommend"))
+				case keyF9:
+					return p.submitCommand([]rune("__toggle_autothumbnail"))
 				case keySpace:
 					return p.submitCommand([]rune("__toggle_playback"))
 				case keyLeft:
@@ -329,6 +410,26 @@ func showSongs(songs []Song) {
 			continue
 		}
 		fmt.Printf("%3d. %s\n", i+1, song.Title)
+	}
+}
+
+func (p *player) showFullPlaylist() {
+	if len(p.playlist) == 0 {
+		fmt.Println("Playlist is empty")
+		return
+	}
+	fmt.Printf("\n%s\n", colorText(ansiYellow, fmt.Sprintf("Playlist (%d songs):", len(p.playlist))))
+	for i, song := range p.playlist {
+		marker := " "
+		title := song.Title
+		if song.Channel != "" {
+			title = song.Title + " - " + song.Channel
+		}
+		if i == p.currentIndex {
+			fmt.Printf("%s %3d. %s\n", colorText(ansiGreen, ">"), i+1, colorText(ansiGreen, title))
+		} else {
+			fmt.Printf("%s %3d. %s\n", marker, i+1, title)
+		}
 	}
 }
 
@@ -428,8 +529,10 @@ func showHelp() {
   Up     Show previous playlist items
   Down   Show next playlist items
   F1     Show help
+  F6     Toggle Interactive Lyrics
   F7     Toggle Shuffle
   F8     Toggle Auto Recommendation
+  F9     Toggle Auto Thumbnail
 
 System media keys (work even when window is not focused):
   Play/Pause, Stop, Next Track, Previous Track

@@ -14,6 +14,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -79,7 +80,7 @@ func (p *player) showThumbnail() {
 		return
 	}
 	width := clamp(p.cfg.ThumbnailWidth, 8, maxInt(8, terminalWidth()-2))
-	fmt.Println("\nThumbnail:")
+	fmt.Printf("\nThumbnail: %s\n", song.nowPlayingTitle())
 	renderThumbnail(img, width, 0)
 }
 
@@ -267,10 +268,76 @@ func (p *player) showLyrics() {
 		fmt.Println("Lyrics not found")
 		return
 	}
+	if result.SyncedLyrics != "" {
+		p.currentLyrics = parseSyncedLyrics(result.SyncedLyrics)
+	}
+
 	lyrics := result.PlainLyrics
 	if lyrics == "" {
 		lyrics = timeTag.ReplaceAllString(result.SyncedLyrics, "")
 	}
 	fmt.Printf("\n%s - %s\n\n%s\n\nLyrics provided by LRCLIB\n",
 		result.TrackName, result.ArtistName, strings.TrimSpace(lyrics))
+}
+
+func (p *player) fetchLyricsSilent(song *Song) {
+	if song == nil {
+		return
+	}
+	metadata, err := p.videoMetadata(song.ID, song.SourceURL)
+	if err != nil {
+		metadata = nil
+	}
+	query := lyricsQuery(song.Title, metadata)
+	ctx, cancel := context.WithTimeout(context.Background(), lyricsSearchTimeout)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, p.cfg.LyricsAPI+"?q="+url.QueryEscape(query), nil)
+	if err != nil {
+		return
+	}
+	req.Header.Set("User-Agent", "ytmusic-cli-go/1.0")
+	resp, err := p.httpClient.Do(req)
+	if err != nil {
+		return
+	}
+	defer resp.Body.Close()
+	var results []lyricsResult
+	if err := decodeJSON(resp.Body, &results); err != nil {
+		return
+	}
+	result := bestLyricsResult(query, results)
+	if result != nil && result.SyncedLyrics != "" {
+		p.currentLyrics = parseSyncedLyrics(result.SyncedLyrics)
+	}
+}
+
+func parseSyncedLyrics(lrc string) []LyricLine {
+	var lines []LyricLine
+	for _, line := range strings.Split(lrc, "\n") {
+		line = strings.TrimSpace(line)
+		if !strings.HasPrefix(line, "[") {
+			continue
+		}
+		endIdx := strings.Index(line, "]")
+		if endIdx == -1 {
+			continue
+		}
+		timeStr := line[1:endIdx]
+		text := strings.TrimSpace(line[endIdx+1:])
+		
+		parts := strings.Split(timeStr, ":")
+		if len(parts) >= 2 {
+			minStr := parts[len(parts)-2]
+			secStr := parts[len(parts)-1]
+			if dotIdx := strings.Index(secStr, "."); dotIdx != -1 {
+				secStr = secStr[:dotIdx]
+			}
+			min, err1 := strconv.Atoi(minStr)
+			sec, err2 := strconv.Atoi(secStr)
+			if err1 == nil && err2 == nil {
+				lines = append(lines, LyricLine{TimeSeconds: min*60 + sec, Text: text})
+			}
+		}
+	}
+	return lines
 }

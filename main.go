@@ -31,6 +31,9 @@ type player struct {
 	console          *consoleInput
 	mediaCommands    chan string
 	autoAdvanceArmed bool
+	currentLyrics    []LyricLine
+	showSyncedLyrics bool
+	autoThumbnail    bool
 }
 
 func main() {
@@ -90,12 +93,19 @@ func main() {
 		if command == "" {
 			continue
 		}
-		if !strings.HasPrefix(command, "__") {
+		cleared := false
+		if !strings.HasPrefix(command, "__") || command == "__playlist_up" || command == "__playlist_down" || command == "__toggle_lyrics" || command == "__toggle_autothumbnail" {
 			clearScreen()
+			cleared = true
 		}
 		if !p.execute(command) {
 			break
 		}
+		
+		if cleared && p.autoThumbnail && p.currentSong != nil && command != "thumbnail" && command != "now" && command != "quit" {
+			p.showThumbnail()
+		}
+		
 		p.cleanCache()
 	}
 	fmt.Println("\nBye...")
@@ -134,6 +144,23 @@ func (p *player) execute(command string) bool {
 		p.autoRecommend = !p.autoRecommend
 		p.saveState()
 		fmt.Println("YouTube Auto Recommendation", onOff(p.autoRecommend))
+	case lower == "__toggle_lyrics":
+		p.showSyncedLyrics = !p.showSyncedLyrics
+		if p.showSyncedLyrics {
+			fmt.Println("Interactive Lyrics (F6): ON")
+			if len(p.currentLyrics) == 0 && p.currentSong != nil {
+				go p.fetchLyricsSilent(p.currentSong)
+			}
+		} else {
+			fmt.Println("Interactive Lyrics (F6): OFF")
+		}
+	case lower == "__toggle_autothumbnail":
+		p.autoThumbnail = !p.autoThumbnail
+		if p.autoThumbnail {
+			fmt.Println("Auto Thumbnail (F9): ON")
+		} else {
+			fmt.Println("Auto Thumbnail (F9): OFF")
+		}
 	case lower == "__toggle_shuffle":
 		p.shuffle = !p.shuffle
 		p.saveState()
@@ -149,7 +176,7 @@ func (p *player) execute(command string) bool {
 	case lower == "playlist save":
 		p.saveLoadedPlaylist()
 	case lower == "playlist show":
-		showSongs(p.playlist)
+		p.showFullPlaylist()
 	case strings.HasPrefix(lower, "profile load "):
 		p.profileResults = p.findProfilePlaylists(argumentAfter(command, "profile load "))
 		p.showProfileResults()

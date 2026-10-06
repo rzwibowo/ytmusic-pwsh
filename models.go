@@ -63,3 +63,8 @@ type lyricsResult struct {
 	PlainLyrics  string `json:"plainLyrics"`
 	SyncedLyrics string `json:"syncedLyrics"`
 }
+
+type LyricLine struct {
+	TimeSeconds int
+	Text        string
+}
