@@ -80,8 +80,9 @@ func (p *player) showThumbnail() {
 		return
 	}
 	width := clamp(p.cfg.ThumbnailWidth, 8, maxInt(8, terminalWidth()-2))
+	availableRows := maxInt(4, terminalHeight()-p.expectedStatusLinesCount()-8)
 	fmt.Printf("\nThumbnail: %s\n", song.nowPlayingTitle())
-	renderThumbnail(img, width, 0)
+	renderThumbnail(img, width, availableRows)
 }
 
 func (p *player) showSearchThumbnail(raw string) {
@@ -98,7 +99,8 @@ func (p *player) showSearchThumbnail(raw string) {
 	}
 	fmt.Printf("\nThumbnail: %s\n", song.Title)
 	width := clamp(p.cfg.ThumbnailWidth, 8, maxInt(8, terminalWidth()-2))
-	renderThumbnail(img, width, 0)
+	availableRows := maxInt(4, terminalHeight()-p.expectedStatusLinesCount()-8)
+	renderThumbnail(img, width, availableRows)
 }
 
 func (p *player) fetchThumbnailImage(videoID string) (image.Image, error) {
@@ -134,14 +136,14 @@ func renderThumbnail(img image.Image, width, rows int) {
 }
 
 func thumbnailRenderSize(bounds image.Rectangle, width, rows int) (int, int) {
-	if rows > 0 {
-		pixelHeight := maxInt(2, rows*2)
-		derivedWidth := int(math.Round(float64(bounds.Dx()) / float64(bounds.Dy()) * float64(pixelHeight)))
-		return maxInt(8, derivedWidth), pixelHeight
-	}
 	pixelHeight := maxInt(2, int(math.Round(float64(bounds.Dy())/float64(bounds.Dx())*float64(width))))
 	if pixelHeight%2 != 0 {
 		pixelHeight++
+	}
+	if rows > 0 && (pixelHeight/2) > rows {
+		pixelHeight = maxInt(2, rows*2)
+		derivedWidth := int(math.Round(float64(bounds.Dx()) / float64(bounds.Dy()) * float64(pixelHeight)))
+		return maxInt(8, minInt(width, derivedWidth)), pixelHeight
 	}
 	return width, pixelHeight
 }
@@ -284,6 +286,8 @@ func (p *player) fetchLyricsSilent(song *Song) {
 	if song == nil {
 		return
 	}
+	p.lyricsLoading = true
+	defer func() { p.lyricsLoading = false }()
 	metadata, err := p.videoMetadata(song.ID, song.SourceURL)
 	if err != nil {
 		metadata = nil

@@ -122,7 +122,15 @@ func (p *player) statusLines(status *vlcStatus, width int) []string {
 	
 	if p.showSyncedLyrics {
 		prevText := ""
-		currText := "No synced lyrics available"
+		currText := ""
+		
+		if p.lyricsLoading {
+			dots := strings.Repeat(".", int(time.Now().Unix()%3)+1)
+			currText = "loading lyric" + dots
+		} else if len(p.currentLyrics) == 0 {
+			currText = "no lyric found"
+		}
+		
 		nextText := ""
 		
 		if len(p.currentLyrics) > 0 && status != nil {
@@ -401,7 +409,8 @@ func (p *player) readCommand(input *consoleInput) string {
 				p.writeStatus(status)
 			}
 			if p.autoNext(status) {
-				fmt.Print(colorText(ansiCyan, "ytplayer: "), string(buffer))
+				lines := p.expectedStatusLinesCount()
+				fmt.Print(strings.Repeat("\n", lines), colorText(ansiCyan, "ytplayer: "), string(buffer))
 			}
 		}
 	}

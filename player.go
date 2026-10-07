@@ -22,6 +22,7 @@ func (p *player) playSong(index int) {
 	p.autoAdvanceArmed = false
 	p.currentLyrics = nil
 	if p.showSyncedLyrics {
+		p.lyricsLoading = true
 		go p.fetchLyricsSilent(&song)
 	}
 	nowTitle := song.nowPlayingTitle()

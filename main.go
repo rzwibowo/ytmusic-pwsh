@@ -32,6 +32,7 @@ type player struct {
 	mediaCommands    chan string
 	autoAdvanceArmed bool
 	currentLyrics    []LyricLine
+	lyricsLoading    bool
 	showSyncedLyrics bool
 	autoThumbnail    bool
 }
@@ -150,6 +151,7 @@ func (p *player) execute(command string) bool {
 		if p.showSyncedLyrics {
 			fmt.Println("Interactive Lyrics (F6): ON")
 			if len(p.currentLyrics) == 0 && p.currentSong != nil {
+				p.lyricsLoading = true
 				go p.fetchLyricsSilent(p.currentSong)
 			}
 		} else {
