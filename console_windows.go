@@ -115,3 +115,13 @@ func terminalWidth() int {
 	}
 	return int(info.Window.Right-info.Window.Left) + 1
 }
+
+func terminalHeight() int {
+	handle := os.Stdout.Fd()
+	var info screenBufferInfo
+	ok, _, _ := procGetConsoleScreenBufferInfo.Call(handle, uintptr(unsafe.Pointer(&info)))
+	if ok == 0 {
+		return 30
+	}
+	return int(info.Window.Bottom-info.Window.Top) + 1
+}

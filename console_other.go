@@ -19,4 +19,5 @@ func (c *consoleInput) readKey(_ time.Duration) (keyPress, bool) {
 	return keyPress{char: r}, err == nil
 }
 func terminalWidth() int    { return 120 }
+func terminalHeight() int   { return 30 }
 func setConsoleTitle(_ string) {}
