@@ -337,6 +337,7 @@ func (p *player) readCommand(input *consoleInput) string {
 	var buffer []rune
 	lastStatus := time.Time{}
 	refresh := 750 * time.Millisecond
+	lastWidth := terminalWidth()
 	for {
 		select {
 		case command := <-p.mediaCommands:
@@ -399,6 +400,13 @@ func (p *player) readCommand(input *consoleInput) string {
 		}
 		if time.Since(lastStatus) >= refresh {
 			lastStatus = time.Now()
+			currentWidth := terminalWidth()
+			if currentWidth != lastWidth {
+				lastWidth = currentWidth
+				clearScreen()
+				linesCount := p.expectedStatusLinesCount()
+				fmt.Print(strings.Repeat("\n", linesCount), colorText(ansiCyan, "ytplayer: "), string(buffer))
+			}
 			status, _ := p.getVLCStatus()
 			if status != nil && status.State == "playing" {
 				refresh = 750 * time.Millisecond
@@ -409,8 +417,8 @@ func (p *player) readCommand(input *consoleInput) string {
 				p.writeStatus(status)
 			}
 			if p.autoNext(status) {
-				lines := p.expectedStatusLinesCount()
-				fmt.Print(strings.Repeat("\n", lines), colorText(ansiCyan, "ytplayer: "), string(buffer))
+				linesCount := p.expectedStatusLinesCount()
+				fmt.Print(strings.Repeat("\n", linesCount), colorText(ansiCyan, "ytplayer: "), string(buffer))
 			}
 		}
 	}

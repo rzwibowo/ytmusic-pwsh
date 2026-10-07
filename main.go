@@ -95,7 +95,7 @@ func main() {
 			continue
 		}
 		cleared := false
-		if !strings.HasPrefix(command, "__") || command == "__playlist_up" || command == "__playlist_down" || command == "__toggle_lyrics" || command == "__toggle_autothumbnail" {
+		if !strings.HasPrefix(command, "__") || command == "__playlist_up" || command == "__playlist_down" || command == "__toggle_lyrics" || command == "__toggle_autothumbnail" || command == "__toggle_playback" {
 			clearScreen()
 			cleared = true
 		}
